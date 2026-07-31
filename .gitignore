@@ -1,3 +1,5 @@
 node_modules
 .pnpm-store
 */node_modules
+.dumps
+frontend/dist
