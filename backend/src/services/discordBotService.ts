@@ -44,6 +44,10 @@ export class DiscordBotService {
   private isReady: boolean = false;
   private roleReactionMappings: RoleReactionMapping[] = [];
   private prisma: PrismaClient;
+  // Guards against a single interaction/member-join being handled more than once
+  // (e.g. duplicate gateway dispatches), which previously caused duplicate sends.
+  private processedInteractionIds: Set<string> = new Set();
+  private recentWelcomes: Map<string, number> = new Map();
 
   constructor(config: {
     botToken: string;
@@ -812,9 +816,16 @@ export class DiscordBotService {
       const messageContent = this.buildRoleSelectionMessage();
       const message = await channel.send(messageContent);
 
-      // Add reactions for each role
+      // Add reactions for each role. A failure here (e.g. rate limiting) must
+      // not bubble up and fail the job, since a job retry would call this
+      // method again and re-send (duplicate) the message that already sent
+      // successfully above.
       for (const mapping of this.roleReactionMappings) {
-        await message.react(mapping.emoji);
+        try {
+          await message.react(mapping.emoji);
+        } catch (reactionError) {
+          logger.error(`Failed to add reaction ${mapping.emoji} to role selection message ${message.id}:`, reactionError);
+        }
       }
 
       logger.info(`Created role selection message in channel ${channelId}`);
@@ -872,6 +883,16 @@ export class DiscordBotService {
   }
 
   private async handleInteraction(interaction: any): Promise<void> {
+    // Discord can dispatch the same interaction more than once (e.g. gateway
+    // resume replays); ignore anything we've already started handling so we
+    // never send a duplicate response for one user action.
+    if (this.processedInteractionIds.has(interaction.id)) {
+      logger.warn(`Ignoring duplicate interactionCreate dispatch for interaction ${interaction.id}`);
+      return;
+    }
+    this.processedInteractionIds.add(interaction.id);
+    setTimeout(() => this.processedInteractionIds.delete(interaction.id), 60_000);
+
     try {
       if (interaction.isChatInputCommand()) {
         await this.handleSlashCommand(interaction);
@@ -880,7 +901,7 @@ export class DiscordBotService {
       }
     } catch (error) {
       logger.error('Error handling interaction:', error);
-      if (interaction.isRepliable()) {
+      if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
         await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
       }
     }
@@ -917,7 +938,9 @@ export class DiscordBotService {
       }
     } catch (error) {
       logger.error('Error handling button interaction:', error);
-      await interaction.reply({ content: 'There was an error processing your selection!', ephemeral: true });
+      if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: 'There was an error processing your selection!', ephemeral: true });
+      }
     }
   }
 
@@ -1190,7 +1213,7 @@ Green buttons: Select roles that interest you.
     try {
       const { customId, user } = interaction;
       const roleType = customId.replace('role_', '');
-      
+
       // Get role ID from database based on role type
       const roleId = await this.getRoleIdFromDatabase(roleType);
       if (!roleId) {
@@ -1200,6 +1223,62 @@ Green buttons: Select roles that interest you.
 
       // Check if user has MRM account linked
       const hasLinkedAccount = await this.checkUserMRMLink(user.id);
+
+      // Get user-friendly role name
+      const roleName = this.getRoleDisplayName(roleType);
+
+      // Check if this is a year/class rank role
+      const isYearRole = ['first_year', 'second_year', 'third_year', 'fourth_year', 'alumni_other'].includes(roleType);
+
+      const member = await this.guild!.members.fetch(user.id);
+      const hasRole = member.roles.cache.has(roleId);
+
+      // Discord only allows a single reply per interaction; the role-update
+      // result becomes that reply and everything else uses followUp().
+      let resultMessage: string;
+
+      if (isYearRole) {
+        // For year roles: always set (replace any existing year role)
+        if (hasRole) {
+          // User already has this year role, remove it
+          await member.roles.remove(roleId);
+          resultMessage = `${roleName} has been removed from your account.`;
+
+          // Update MRM database if account is linked
+          if (hasLinkedAccount) {
+            await this.updateMRMUserInterest(user.id, roleType, false);
+          }
+        } else {
+          // Remove any existing year roles first
+          await this.removeAllYearRoles(member);
+
+          // Add the new year role
+          await member.roles.add(roleId);
+          resultMessage = `${roleName} has been set as your class rank.`;
+
+          // Update MRM database if account is linked
+          if (hasLinkedAccount) {
+            await this.updateMRMUserInterest(user.id, roleType, true);
+          }
+        }
+      } else {
+        // For interest roles: toggle behavior
+        if (hasRole) {
+          await member.roles.remove(roleId);
+          resultMessage = `Interest ${roleName} has been removed from your account.`;
+        } else {
+          await member.roles.add(roleId);
+          resultMessage = `Interest ${roleName} has been added to your account.`;
+        }
+
+        // Update MRM database if account is linked
+        if (hasLinkedAccount) {
+          await this.updateMRMUserInterest(user.id, roleType, !hasRole);
+        }
+      }
+
+      await interaction.reply({ content: resultMessage, ephemeral: true });
+
       if (!hasLinkedAccount) {
         const verifyButton = new ButtonBuilder()
           .setLabel('Link Account')
@@ -1210,65 +1289,18 @@ Green buttons: Select roles that interest you.
         const buttonRow = new ActionRowBuilder<ButtonBuilder>()
           .addComponents(verifyButton);
 
-        await interaction.reply({
+        await interaction.followUp({
           content: '⚠️ Warning: Your Discord account is not linked to an MRM account. Please link your accounts to access role benefits.',
           components: [buttonRow],
           ephemeral: true
         });
       }
 
-      // Get user-friendly role name
-      const roleName = this.getRoleDisplayName(roleType);
-      
-      // Check if this is a year/class rank role
-      const isYearRole = ['first_year', 'second_year', 'third_year', 'fourth_year', 'alumni_other'].includes(roleType);
-      
-      const member = await this.guild!.members.fetch(user.id);
-      const hasRole = member.roles.cache.has(roleId);
-      
-      if (isYearRole) {
-        // For year roles: always set (replace any existing year role)
-        if (hasRole) {
-          // User already has this year role, remove it
-          await member.roles.remove(roleId);
-          await interaction.reply({ content: `${roleName} has been removed from your account.`, ephemeral: true });
-          
-          // Update MRM database if account is linked
-          if (hasLinkedAccount) {
-            await this.updateMRMUserInterest(user.id, roleType, false);
-          }
-        } else {
-          // Remove any existing year roles first
-          await this.removeAllYearRoles(member);
-          
-          // Add the new year role
-          await member.roles.add(roleId);
-          await interaction.reply({ content: `${roleName} has been set as your class rank.`, ephemeral: true });
-          
-          // Update MRM database if account is linked
-          if (hasLinkedAccount) {
-            await this.updateMRMUserInterest(user.id, roleType, true);
-          }
-        }
-      } else {
-        // For interest roles: toggle behavior
-        if (hasRole) {
-          await member.roles.remove(roleId);
-          await interaction.reply({ content: `Interest ${roleName} has been removed from your account.`, ephemeral: true });
-        } else {
-          await member.roles.add(roleId);
-          await interaction.reply({ content: `Interest ${roleName} has been added to your account.`, ephemeral: true });
-        }
-        
-        // Update MRM database if account is linked
-        if (hasLinkedAccount) {
-          await this.updateMRMUserInterest(user.id, roleType, !hasRole);
-        }
-      }
-
     } catch (error) {
       logger.error('Error handling role button:', error);
-      await interaction.reply({ content: 'There was an error processing your role selection!', ephemeral: true });
+      if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: 'There was an error processing your role selection!', ephemeral: true });
+      }
     }
   }
 
@@ -1295,7 +1327,22 @@ Green buttons: Select roles that interest you.
   private async handleGuildMemberAdd(member: any): Promise<void> {
     try {
       logger.info(`New member joined: ${member.user.tag} (${member.id})`);
-      
+
+      // Guard against duplicate guildMemberAdd dispatches (e.g. gateway
+      // resume replays) sending a second welcome message for the same join.
+      const now = Date.now();
+      const lastWelcomed = this.recentWelcomes.get(member.id);
+      if (lastWelcomed && now - lastWelcomed < 60_000) {
+        logger.warn(`Ignoring duplicate guildMemberAdd dispatch for ${member.id}`);
+        return;
+      }
+      this.recentWelcomes.set(member.id, now);
+      setTimeout(() => {
+        if (this.recentWelcomes.get(member.id) === now) {
+          this.recentWelcomes.delete(member.id);
+        }
+      }, 60_000);
+
       // Get the new users channel ID from database
       const newUsersChannelId = await this.getNewUsersChannelId();
       if (!newUsersChannelId) {
@@ -1305,7 +1352,7 @@ Green buttons: Select roles that interest you.
 
       // Send welcome message
       await this.sendWelcomeMessage(member, newUsersChannelId);
-      
+
     } catch (error) {
       logger.error('Error handling new guild member:', error);
     }
