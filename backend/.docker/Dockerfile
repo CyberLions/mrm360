@@ -30,4 +30,6 @@ EXPOSE 3000
 ENV CONTAINER_TYPE=backend
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
-CMD ["pnpm", "run", "dev"]
+# The API container must not use `pnpm run dev`: that script also starts the
+# BullMQ worker (and therefore another Discord gateway client).
+CMD ["pnpm", "exec", "next", "dev", "-H", "0.0.0.0", "-p", "3011"]

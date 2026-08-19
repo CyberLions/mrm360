@@ -28,6 +28,7 @@ import {
 import { DiscordChannel, DiscordRole, DiscordPermission } from '@/types';
 import { logger } from '@/utils/logger';
 import { PrismaClient } from '@prisma/client';
+import Redis from 'ioredis';
 
 export interface RoleReactionMapping {
   emoji: string;
@@ -44,6 +45,7 @@ export class DiscordBotService {
   private isReady: boolean = false;
   private roleReactionMappings: RoleReactionMapping[] = [];
   private prisma: PrismaClient;
+  private eventDedupRedis: Redis | null = null;
   // Guards against a single interaction/member-join being handled more than once
   // (e.g. duplicate gateway dispatches), which previously caused duplicate sends.
   private processedInteractionIds: Set<string> = new Set();
@@ -188,6 +190,10 @@ export class DiscordBotService {
   async disconnect(): Promise<void> {
     try {
       await this.client.destroy();
+      if (this.eventDedupRedis) {
+        await this.eventDedupRedis.quit();
+        this.eventDedupRedis = null;
+      }
       this.isReady = false;
       this.guild = null;
       logger.info('Discord bot disconnected');
@@ -856,6 +862,12 @@ export class DiscordBotService {
       const mapping = this.roleReactionMappings.find(m => m.emoji === reaction.emoji.name);
       if (!mapping) return;
 
+      const claimed = await this.claimGatewayEvent(
+        `reaction-add:${reaction.message.guildId}:${reaction.message.id}:${user.id}:${reaction.emoji.identifier}`,
+        10
+      );
+      if (!claimed) return;
+
       const member = await this.guild!.members.fetch(user.id);
       await member.roles.add(mapping.roleId);
 
@@ -872,6 +884,12 @@ export class DiscordBotService {
 
       const mapping = this.roleReactionMappings.find(m => m.emoji === reaction.emoji.name);
       if (!mapping) return;
+
+      const claimed = await this.claimGatewayEvent(
+        `reaction-remove:${reaction.message.guildId}:${reaction.message.id}:${user.id}:${reaction.emoji.identifier}`,
+        10
+      );
+      if (!claimed) return;
 
       const member = await this.guild!.members.fetch(user.id);
       await member.roles.remove(mapping.roleId);
@@ -892,6 +910,10 @@ export class DiscordBotService {
     }
     this.processedInteractionIds.add(interaction.id);
     setTimeout(() => this.processedInteractionIds.delete(interaction.id), 60_000);
+
+    if (!await this.claimGatewayEvent(`interaction:${interaction.id}`, 60)) {
+      return;
+    }
 
     try {
       if (interaction.isChatInputCommand()) {
@@ -1343,6 +1365,14 @@ Green buttons: Select roles that interest you.
         }
       }, 60_000);
 
+      // The in-memory guard above only protects one Node process. Redis makes
+      // the same event idempotent when multiple containers or old/new rollout
+      // instances are connected with the same bot token.
+      const joinedAt = member.joinedTimestamp || member.joinedAt?.getTime() || now;
+      if (!await this.claimGatewayEvent(`member-add:${member.guild.id}:${member.id}:${joinedAt}`, 86_400)) {
+        return;
+      }
+
       // Get the new users channel ID from database
       const newUsersChannelId = await this.getNewUsersChannelId();
       if (!newUsersChannelId) {
@@ -1355,6 +1385,46 @@ Green buttons: Select roles that interest you.
 
     } catch (error) {
       logger.error('Error handling new guild member:', error);
+    }
+  }
+
+  /**
+   * Claim a Discord gateway event across every running application process.
+   * Discord sends each gateway event to every session using the bot token, so
+   * process-local Sets cannot prevent duplicate side effects.
+   */
+  private async claimGatewayEvent(eventKey: string, ttlSeconds: number): Promise<boolean> {
+    try {
+      if (!this.eventDedupRedis) {
+        this.eventDedupRedis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
+          maxRetriesPerRequest: 1,
+          lazyConnect: true
+        });
+      }
+
+      if (this.eventDedupRedis.status === 'wait') {
+        await this.eventDedupRedis.connect();
+      }
+
+      const claimed = await this.eventDedupRedis.set(
+        `discord:gateway-event:${eventKey}`,
+        `${process.pid}`,
+        'EX',
+        ttlSeconds,
+        'NX'
+      );
+
+      if (claimed !== 'OK') {
+        logger.warn(`Ignoring Discord gateway event already claimed by another process: ${eventKey}`);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      // Discord should remain usable during a Redis outage. The existing
+      // process-local guards still provide limited protection in that case.
+      logger.error('Failed to claim Discord gateway event in Redis; using local handling:', error);
+      return true;
     }
   }
 
