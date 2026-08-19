@@ -3,3 +3,4 @@ node_modules
 */node_modules
 .dumps
 frontend/dist
+backend/dist

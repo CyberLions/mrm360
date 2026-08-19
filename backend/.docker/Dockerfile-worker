@@ -29,9 +29,14 @@ RUN chmod +x /usr/src/app/backend/.docker/wait-for-it.sh && \
 
 WORKDIR /usr/src/app/backend
 
+# Generate Prisma and compile the worker once during image creation. Production
+# runs plain Node rather than transpiling the TypeScript source at startup.
+RUN pnpm run db:generate && pnpm run worker:build
+
 EXPOSE 3000
 
 ENV CONTAINER_TYPE=worker
+ENV NODE_ENV=production
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
-CMD ["pnpm", "run", "worker"]
+CMD ["pnpm", "run", "worker:start"]
