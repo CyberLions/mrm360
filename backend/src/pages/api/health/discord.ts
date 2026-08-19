@@ -1,6 +1,4 @@
 import { NextApiRequest, NextApiResponse } from 'next';
-import { DiscordBotServiceFactory } from '@/services/discordBotServiceFactory';
-import { DiscordConfigValidator } from '@/services/discordConfigValidator';
 import { logger } from '@/utils/logger';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -11,49 +9,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     logger.info('Discord bot health check requested');
 
-    // Get environment status
-    const envStatus = DiscordConfigValidator.getEnvironmentStatus();
-    
-    // Try to create and validate service
-    let serviceHealth = null;
-    let serviceError = null;
-    
-    try {
-      const service = DiscordBotServiceFactory.createServiceFromEnv();
-      serviceHealth = await DiscordBotServiceFactory.validateServiceHealth(service);
-    } catch (error) {
-      serviceError = error instanceof Error ? error.message : 'Unknown error';
-    }
-
-    // Check if production ready
-    const isProductionReady = DiscordConfigValidator.isProductionReady({
-      botToken: process.env.DISCORD_BOT_TOKEN || '',
-      guildId: process.env.DISCORD_GUILD_ID || '',
-      categoryId: process.env.DISCORD_CATEGORY_ID || ''
-    });
+    // The API must not create a Discord gateway client just to answer a health
+    // check. Report configuration readiness; the worker owns live connectivity.
+    const environment = {
+      botToken: Boolean(process.env.DISCORD_BOT_TOKEN),
+      guildId: Boolean(process.env.DISCORD_GUILD_ID),
+      categoryId: Boolean(process.env.DISCORD_CATEGORY_ID)
+    };
+    const isProductionReady = Object.values(environment).every(Boolean);
 
     const healthData = {
-      status: serviceHealth ? 'healthy' : 'unhealthy',
+      status: isProductionReady ? 'configured' : 'unconfigured',
       timestamp: new Date().toISOString(),
-      environment: {
-        botToken: envStatus.botToken,
-        guildId: envStatus.guildId,
-        categoryId: envStatus.categoryId,
-        overall: envStatus.overall
-      },
-      service: {
-        health: serviceHealth,
-        error: serviceError
-      },
+      environment,
       production: {
         ready: isProductionReady
-      },
-      setup: {
-        instructions: DiscordConfigValidator.generateSetupInstructions()
       }
     };
 
-    const statusCode = serviceHealth ? 200 : 503;
+    const statusCode = isProductionReady ? 200 : 503;
     
     res.status(statusCode).json(healthData);
     
@@ -65,10 +39,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(500).json({
       status: 'error',
       timestamp: new Date().toISOString(),
-      error: error instanceof Error ? error.message : 'Unknown error',
-      setup: {
-        instructions: DiscordConfigValidator.generateSetupInstructions()
-      }
+      error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 }

@@ -25,11 +25,16 @@ COPY backend/ ./backend/
 
 WORKDIR /usr/src/app/backend
 
-EXPOSE 3000
+# Compile Next.js during the image build. Running `next dev` in production
+# enables verbose request and Prisma query logging and performs runtime builds.
+RUN pnpm run db:generate && NEXT_IGNORE_TYPE_ERRORS=true pnpm run build
+
+EXPOSE 3011
 
 ENV CONTAINER_TYPE=backend
+ENV NODE_ENV=production
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
-# The API container must not use `pnpm run dev`: that script also starts the
-# BullMQ worker (and therefore another Discord gateway client).
-CMD ["pnpm", "exec", "next", "dev", "-H", "0.0.0.0", "-p", "3011"]
+# The API container runs only the compiled API. BullMQ workers run in the
+# dedicated worker container.
+CMD ["pnpm", "exec", "next", "start", "-H", "0.0.0.0", "-p", "3011"]

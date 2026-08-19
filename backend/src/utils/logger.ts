@@ -60,8 +60,18 @@ class Logger {
   }
 }
 
-export const logger = new Logger(
-  process.env.NODE_ENV === 'development' ? LogLevel.DEBUG : LogLevel.INFO
-);
+function getConfiguredLogLevel(): LogLevel {
+  const configuredLevel = process.env.LOG_LEVEL?.toUpperCase();
+  if (configuredLevel && configuredLevel in LogLevel) {
+    const level = LogLevel[configuredLevel as keyof typeof LogLevel];
+    if (typeof level === 'number') return level;
+  }
+
+  // Production logs should focus on actionable warnings and errors. Set
+  // LOG_LEVEL=INFO or DEBUG explicitly when temporary diagnostics are needed.
+  return process.env.NODE_ENV === 'production' ? LogLevel.WARN : LogLevel.DEBUG;
+}
+
+export const logger = new Logger(getConfiguredLogLevel());
 
 export default logger;

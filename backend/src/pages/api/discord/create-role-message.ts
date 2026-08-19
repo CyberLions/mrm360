@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { logger } from '@/utils/logger';
 import { withCORS } from '@/middleware/corsMiddleware';
-import { DiscordRoleReactionsService } from '@/services/discordRoleReactionsService';
+import { discordQueue } from '@/tasks/queue';
 
 export default withCORS(async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -20,28 +20,18 @@ export default withCORS(async function handler(req: NextApiRequest, res: NextApi
       });
     }
 
-    // Create role reactions service
-    const roleReactionsService = new DiscordRoleReactionsService({
-      botToken,
-      guildId,
+    // Keep Discord gateway activity in the dedicated worker process.
+    const job = await discordQueue.add('createRoleSelectionMessage', {
+      action: 'createRoleSelectionMessage',
       channelId
     });
 
-    // Connect to Discord
-    await roleReactionsService.connect();
-
-    // Create the role selection message
-    const messageId = await roleReactionsService.createRoleSelectionMessage();
-
-    // Disconnect the service
-    await roleReactionsService.disconnect();
-
-    logger.info('Discord role selection message created successfully', { messageId });
+    logger.info('Discord role selection message queued', { jobId: job.id });
 
     return res.status(200).json({
       success: true,
-      message: 'Role selection message created successfully',
-      data: { messageId }
+      message: 'Role selection message queued successfully',
+      data: { jobId: job.id }
     });
 
   } catch (error) {
