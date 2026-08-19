@@ -6,7 +6,7 @@
         Scan with the camera or use a barcode reader/keyboard.
       </p>
     </div>
-    <div class="mb-4 grid grid-cols-3 gap-2 sm:mb-6 sm:gap-3">
+    <div v-if="isManager" class="mb-4 grid grid-cols-4 gap-2 sm:mb-6 sm:gap-3">
       <button
         v-for="tab in tabs"
         :key="tab.id"
@@ -23,7 +23,7 @@
     <section
       class="space-y-4 rounded-2xl border border-gray-700 bg-gray-900 p-4 sm:space-y-5 sm:p-8"
     >
-      <div class="grid grid-cols-2 gap-2 rounded-xl bg-gray-950 p-1">
+      <div v-if="isManager" class="grid grid-cols-2 gap-2 rounded-xl bg-gray-950 p-1">
         <button
           @click="inputMode = 'text'"
           :class="
@@ -49,7 +49,7 @@
         </button>
       </div>
       <template v-if="inputMode === 'text'">
-        <div v-if="mode === 'checkout'" class="relative">
+        <div v-if="mode === 'bulk-checkout'" class="relative">
           <label class="label">1. Member profile</label
           ><input
             ref="firstInput"
@@ -113,7 +113,7 @@
         </div>
         <div>
           <label class="label"
-            >{{ mode === "checkout" ? "2. " : "" }}Item barcode</label
+            >{{ mode === "bulk-checkout" ? "2. " : "" }}Item barcode</label
           >
           <div class="flex min-w-0 gap-2">
             <input
@@ -150,7 +150,7 @@
       </template>
       <template v-else>
         <details
-          v-if="mode === 'checkout'"
+          v-if="mode === 'bulk-checkout'"
           :open="cameraStep === 'member'"
           class="rounded-xl border border-gray-700 bg-gray-950 p-3 sm:p-4"
         >
@@ -176,7 +176,7 @@
           class="rounded-xl border border-gray-700 bg-gray-950 p-3 sm:p-4"
         >
           <summary class="touch-manipulation cursor-pointer text-base font-semibold sm:text-lg">
-            {{ mode === "checkout" ? "Step 2 · " : "" }}Item barcode
+            {{ mode === "bulk-checkout" ? "Step 2 · " : "" }}Item barcode
             <span v-if="barcode" class="ml-2 text-green-400">✓ Scanned</span>
           </summary>
           <CameraCodeScanner
@@ -224,6 +224,21 @@
           </button>
         </div>
       </template>
+      <div v-if="mode !== 'quick-add'" class="space-y-4 rounded-xl border border-gray-700 bg-gray-950 p-4">
+        <div v-if="mode === 'bulk-checkout'">
+          <label class="label">Recent event</label>
+          <select v-model="eventId" class="field" @change="useEventNote">
+            <option value="">No event</option>
+            <option v-for="event in recentEvents" :key="event.id" :value="event.id">
+              {{ event.title }} · {{ formatEventDate(event.startTime) }}
+            </option>
+          </select>
+        </div>
+        <div>
+          <label class="label">Note (optional)<span v-if="mode === 'bulk-checkout'"> · applies to every scanned item</span></label>
+          <textarea v-model="note" maxlength="1000" rows="3" class="field resize-y" placeholder="For blue team competition …" />
+        </div>
+      </div>
       <datalist id="kiosk-names">
         <option v-for="n in names" :key="n" :value="n" />
       </datalist>
@@ -237,7 +252,7 @@
         </select>
       </div>
       <button
-        v-if="inputMode === 'text' || mode !== 'checkout'"
+        v-if="inputMode === 'text'"
         @click="submit"
         :disabled="submitting"
         :title="submitting ? 'Working' : actionLabel"
@@ -263,6 +278,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import apiService from "@/services/api";
+import { useAuthStore } from "@/stores/authStore";
 import CameraCodeScanner from "@/components/inventory/CameraCodeScanner.vue";
 import {
   ArrowLeftOnRectangleIcon,
@@ -272,17 +288,21 @@ import {
   CursorArrowRaysIcon,
   PlusCircleIcon,
   SparklesIcon,
+  UserIcon,
 } from "@heroicons/vue/24/outline";
-import type { InventoryBin, InventoryItem } from "@/types/api";
-type Mode = "checkout" | "checkin" | "quick-add";
+import type { Event, InventoryBin, InventoryItem } from "@/types/api";
+type Mode = "self-checkout" | "bulk-checkout" | "checkin" | "quick-add";
 const tabs: { id: Mode; label: string; icon: any }[] = [
-  { id: "checkout", label: "Check Out", icon: ArrowRightOnRectangleIcon },
+  { id: "self-checkout", label: "Self checkout", icon: UserIcon },
+  { id: "bulk-checkout", label: "Bulk/team checkout", icon: ArrowRightOnRectangleIcon },
   { id: "checkin", label: "Check In", icon: ArrowLeftOnRectangleIcon },
   { id: "quick-add", label: "Quick Add Item", icon: PlusCircleIcon },
 ];
-const mode = ref<Mode>("checkout"),
-  inputMode = ref<"text" | "camera">("text"),
-  cameraStep = ref<"member" | "item">("member"),
+const authStore = useAuthStore();
+const isManager = computed(() => authStore.isAdmin || authStore.isExecBoard);
+const mode = ref<Mode>("self-checkout"),
+  inputMode = ref<"text" | "camera">("camera"),
+  cameraStep = ref<"member" | "item">("item"),
   scannerKey = ref(0),
   memberCode = ref(""),
   memberQuery = ref(""),
@@ -291,25 +311,28 @@ const mode = ref<Mode>("checkout"),
   barcode = ref(""),
   name = ref(""),
   binId = ref(""),
+  eventId = ref(""),
+  note = ref(""),
   message = ref(""),
   failed = ref(false),
   submitting = ref(false),
   bins = ref<InventoryBin[]>([]),
   inventoryItems = ref<InventoryItem[]>([]),
   names = ref<string[]>([]),
+  recentEvents = ref<Event[]>([]),
   firstInput = ref<HTMLInputElement>(),
   barcodeInput = ref<HTMLInputElement>();
 const actionLabel = computed(() =>
   mode.value === "quick-add"
     ? "Create item"
-    : mode.value === "checkout"
+    : mode.value === "self-checkout" || mode.value === "bulk-checkout"
       ? "Check out"
       : "Check in",
 );
 const actionIcon = computed(() =>
   mode.value === "quick-add"
     ? PlusCircleIcon
-    : mode.value === "checkout"
+    : mode.value === "self-checkout" || mode.value === "bulk-checkout"
       ? ArrowRightOnRectangleIcon
       : ArrowLeftOnRectangleIcon,
 );
@@ -337,7 +360,13 @@ function reset() {
       "";
   memberResults.value = [];
   selectedMember.value = null;
-  cameraStep.value = mode.value === "checkout" ? "member" : "item";
+  eventId.value = "";
+  note.value = "";
+  if (mode.value === "bulk-checkout" && recentEvents.value.length) {
+    eventId.value = recentEvents.value[0].id;
+    useEventNote();
+  }
+  cameraStep.value = mode.value === "bulk-checkout" ? "member" : "item";
   scannerKey.value++;
   nextTick(() => firstInput.value?.focus() || barcodeInput.value?.focus());
 }
@@ -382,8 +411,10 @@ function acceptMemberEntry() {
 async function itemScanned(value: string) {
   barcode.value = value;
   if (
-    (mode.value === "checkout" && memberCode.value) ||
-    mode.value === "checkin"
+    mode.value === "self-checkout" ||
+    (mode.value === "bulk-checkout" && memberCode.value) ||
+    mode.value === "checkin" ||
+    mode.value === "quick-add"
   )
     await submit();
 }
@@ -418,25 +449,32 @@ async function submit() {
       if (!barcode.value) throw new Error("Scan an item barcode");
       message.value = (
         await apiService.inventoryTransaction({
-          action: mode.value,
+          action: mode.value === "checkin" ? "checkin" : "checkout",
           memberCode: memberCode.value || undefined,
           barcode: barcode.value,
           binId: binId.value || undefined,
+          selfCheckout: mode.value === "self-checkout",
+          note: note.value.trim() || undefined,
         })
       ).message;
     }
     failed.value = false;
     const priorMode = mode.value;
     setTimeout(() => {
-      if (mode.value === priorMode) reset();
+      if (mode.value !== priorMode) return;
+      if (mode.value === "bulk-checkout") {
+        barcode.value = "";
+        cameraStep.value = "item";
+        scannerKey.value++;
+      } else reset();
     }, 1800);
   } catch (e: any) {
     showError(e);
     barcode.value = "";
     cameraStep.value =
-      mode.value === "checkout" && memberCode.value
+      mode.value === "bulk-checkout" && memberCode.value
         ? "item"
-        : mode.value === "checkout"
+        : mode.value === "bulk-checkout"
           ? "member"
           : "item";
     scannerKey.value++;
@@ -445,11 +483,26 @@ async function submit() {
   }
 }
 watch(inputMode, reset);
+function useEventNote() {
+  const event = recentEvents.value.find((candidate) => candidate.id === eventId.value);
+  note.value = event ? `For event ${event.title}` : "";
+}
+function formatEventDate(value: string) {
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value));
+}
 onMounted(async () => {
   const d = await apiService.getInventory();
   bins.value = d.bins;
   inventoryItems.value = d.items;
   names.value = [...new Set(d.items.map((i) => i.name))];
+  if (isManager.value) {
+    const events = await apiService.getEvents({ limit: 10, sortBy: "startTime", sortOrder: "desc" });
+    recentEvents.value = events.data;
+    if (mode.value === "bulk-checkout" && recentEvents.value.length) {
+      eventId.value = recentEvents.value[0].id;
+      useEventNote();
+    }
+  }
   nextTick(() => firstInput.value?.focus());
 });
 </script>

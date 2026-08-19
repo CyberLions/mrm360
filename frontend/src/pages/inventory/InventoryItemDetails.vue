@@ -144,6 +144,9 @@
               </dd>
             </div>
           </div>
+          <p v-if="loan.note" class="mt-3 rounded-lg bg-gray-800 p-3 text-sm text-gray-300">
+            <span class="font-medium text-gray-400">Note:</span> {{ loan.note }}
+          </p>
         </article>
       </div>
     </section>

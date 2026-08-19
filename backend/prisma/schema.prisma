@@ -403,6 +403,7 @@ model ItemLoan {
   checkedOutAt DateTime      @default(now())
   checkedInAt  DateTime?
   returnBinId  String?
+  note         String?
   item         InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 

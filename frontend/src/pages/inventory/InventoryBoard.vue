@@ -11,12 +11,12 @@
           }}
         </p>
       </div>
-      <div v-if="canManage" class="flex gap-2">
-        <button class="btn" @click="showBulk = true">Bulk add</button
+      <div class="flex gap-2">
+        <button v-if="canManage" class="btn" @click="showBulk = true">Bulk add</button
         ><router-link
           class="btn bg-blue-600 hover:bg-blue-500"
           to="/inventory/kiosk"
-          >Open kiosk</router-link
+          >{{ canManage ? "Open kiosk" : "Self checkout" }}</router-link
         >
       </div>
     </div>

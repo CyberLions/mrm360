@@ -280,13 +280,13 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/',
     component: KioskLayout,
-    meta: { requiresAuth: true, requiresExecBoard: true, kiosk: true },
+    meta: { requiresAuth: true, kiosk: true },
     children: [
       {
         path: 'events/:id/checkin',
         name: 'EventCheckIn',
         component: EventCheckIn,
-        meta: { title: 'Event Check-In' }
+        meta: { title: 'Event Check-In', requiresExecBoard: true }
       },
       {
         path: 'inventory/kiosk',

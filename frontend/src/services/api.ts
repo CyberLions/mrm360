@@ -344,7 +344,7 @@ class ApiService {
     return this.updateInventoryItem(id, { binId })
   }
 
-  async inventoryTransaction(data: { action: 'checkout' | 'checkin'; barcode: string; memberCode?: string; binId?: string | null }): Promise<{ message: string }> {
+  async inventoryTransaction(data: { action: 'checkout' | 'checkin'; barcode: string; memberCode?: string; binId?: string | null; selfCheckout?: boolean; note?: string }): Promise<{ message: string }> {
     return (await this.api.post('/inventory/transaction', data)).data
   }
 

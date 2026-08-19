@@ -326,13 +326,13 @@
             <!-- Profile Sidebar -->
             <div v-else-if="currentPath.startsWith('/inventory')" class="space-y-2">
               <router-link to="/inventory" :class="sidebarLinkClass('/inventory', true)"><ArchiveBoxIcon class="mr-3 h-5 w-5" />Inventory board</router-link>
+              <router-link to="/inventory/kiosk" class="group flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-gray-700"><QrCodeIcon class="mr-3 h-5 w-5" />Kiosk mode</router-link>
               <template v-if="authStore.isAdmin || authStore.isExecBoard">
                 <router-link to="/inventory/items" :class="sidebarLinkClass('/inventory/items')"><QueueListIcon class="mr-3 h-5 w-5" />All items</router-link>
                 <router-link to="/inventory/bins" :class="sidebarLinkClass('/inventory/bins', true)"><ArchiveBoxIcon class="mr-3 h-5 w-5" />Bins & locations</router-link>
                 <router-link to="/inventory?action=add-item" :class="sidebarActionClass('add-item')"><PlusIcon class="mr-3 h-5 w-5" />Add item</router-link>
                 <router-link to="/inventory?action=bulk" :class="sidebarActionClass('bulk')"><QueueListIcon class="mr-3 h-5 w-5" />Bulk add items</router-link>
                 <router-link to="/inventory?action=add-bin" :class="sidebarActionClass('add-bin')"><PlusIcon class="mr-3 h-5 w-5" />Create bin</router-link>
-                <router-link to="/inventory/kiosk" class="group flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-gray-700"><QrCodeIcon class="mr-3 h-5 w-5" />Kiosk mode</router-link>
               </template>
             </div>
 

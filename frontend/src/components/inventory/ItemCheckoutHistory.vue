@@ -15,7 +15,7 @@
             <td class="px-5 py-4"><div class="font-medium text-gray-100">{{ loan.item.name }}</div><div class="font-mono text-xs text-gray-500">{{ loan.item.barcode }}</div></td>
             <td class="whitespace-nowrap px-5 py-4 text-gray-300">{{ formatDate(loan.checkedOutAt) }}</td>
             <td class="whitespace-nowrap px-5 py-4 text-gray-300">{{ loan.checkedInAt ? formatDate(loan.checkedInAt) : '—' }}</td>
-            <td class="px-5 py-4"><span v-if="!loan.checkedInAt" class="rounded-full bg-amber-900 px-2.5 py-1 text-xs font-medium text-amber-200">Currently checked out</span><span v-else class="text-gray-300">Returned{{ loan.returnBin ? ` to ${loan.returnBin.room ? `${loan.returnBin.room} · ` : ''}${loan.returnBin.name}` : '' }}</span></td>
+            <td class="px-5 py-4"><span v-if="!loan.checkedInAt" class="rounded-full bg-amber-900 px-2.5 py-1 text-xs font-medium text-amber-200">Currently checked out</span><span v-else class="text-gray-300">Returned{{ loan.returnBin ? ` to ${loan.returnBin.room ? `${loan.returnBin.room} · ` : ''}${loan.returnBin.name}` : '' }}</span><div v-if="loan.note" class="mt-2 max-w-xs whitespace-pre-wrap text-xs text-gray-400">{{ loan.note }}</div></td>
           </tr>
         </tbody>
       </table>

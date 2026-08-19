@@ -59,6 +59,7 @@ export interface ItemLoan {
   checkedOutAt: string
   checkedInAt?: string
   returnBinId?: string
+  note?: string
   item: InventoryItem
   returnBin?: InventoryBin
   user?: { id: string; firstName: string; lastName: string; displayName?: string }

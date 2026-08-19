@@ -9,15 +9,20 @@ const schema = z.object({
   action: z.enum(['checkout', 'checkin']),
   barcode: z.string().trim().min(1),
   memberCode: z.string().trim().optional(),
-  binId: z.string().nullable().optional()
+  binId: z.string().nullable().optional(),
+  selfCheckout: z.boolean().optional().default(false),
+  note: z.string().trim().max(1000).optional()
 })
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
-  if (req.user.role !== 'ADMIN' && req.user.role !== 'EXEC_BOARD') return res.status(403).json({ error: 'Kiosk access required' })
   const parsed = schema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ error: 'Invalid transaction' })
-  const { action, barcode, memberCode, binId } = parsed.data
+  const { action, barcode, memberCode, binId, selfCheckout, note } = parsed.data
+  const isManager = req.user.role === 'ADMIN' || req.user.role === 'EXEC_BOARD'
+  if (!isManager && (action !== 'checkout' || !selfCheckout)) {
+    return res.status(403).json({ error: 'Kiosk access required' })
+  }
 
   const item = await prisma.inventoryItem.findUnique({
     where: { barcode },
@@ -26,12 +31,12 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   if (!item) return res.status(404).json({ error: 'Item barcode not found' })
 
   if (action === 'checkout') {
-    if (!memberCode) return res.status(400).json({ error: 'Scan a member profile first' })
     if (item.checkedOutToId) return res.status(409).json({ error: 'Item is already checked out' })
-    let normalizedMemberCode = memberCode
+    if (!selfCheckout && !memberCode) return res.status(400).json({ error: 'Scan a member profile first' })
+    let normalizedMemberCode = selfCheckout ? req.user.id : memberCode!
     let memberEmail: string | undefined
     try {
-      const payload = JSON.parse(memberCode)
+      const payload = JSON.parse(selfCheckout ? '' : memberCode || '')
       if (typeof payload?.userId === 'string') normalizedMemberCode = payload.userId
       if (typeof payload?.email === 'string') memberEmail = payload.email
     } catch {
@@ -40,7 +45,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     const user = await prisma.user.findFirst({
       where: {
         OR: [
-          { qrCode: memberCode },
+          ...(!selfCheckout && memberCode ? [{ qrCode: memberCode }] : []),
           { id: normalizedMemberCode },
           ...(memberEmail ? [{ email: memberEmail }] : [])
         ]
@@ -50,7 +55,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     const checkedOutAt = new Date()
     await prisma.$transaction([
       prisma.inventoryItem.update({ where: { id: item.id }, data: { checkedOutToId: user.id, binId: null } }),
-      prisma.itemLoan.create({ data: { itemId: item.id, userId: user.id, checkedOutAt } })
+      prisma.itemLoan.create({ data: { itemId: item.id, userId: user.id, checkedOutAt, note: note || null } })
     ])
     await sendItemCheckedOutEmail(user, item, checkedOutAt)
     return res.status(200).json({ message: `${item.name} checked out to ${user.displayName || `${user.firstName} ${user.lastName}`}` })
@@ -61,7 +66,10 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   const returnBin = binId ? await prisma.inventoryBin.findUnique({ where: { id: binId } }) : null
   await prisma.$transaction([
     prisma.inventoryItem.update({ where: { id: item.id }, data: { checkedOutToId: null, binId: binId !== undefined ? binId : item.binId } }),
-    prisma.itemLoan.updateMany({ where: { itemId: item.id, checkedInAt: null }, data: { checkedInAt, returnBinId: binId } })
+    prisma.itemLoan.updateMany({
+      where: { itemId: item.id, checkedInAt: null },
+      data: { checkedInAt, returnBinId: binId, ...(note ? { note } : {}) }
+    })
   ])
   if (item.checkedOutTo) {
     await sendItemCheckedInEmail(item.checkedOutTo, item, checkedInAt, returnBin?.name)
