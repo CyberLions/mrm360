@@ -146,7 +146,7 @@
       <!-- Page-Specific Sidebar -->
       <div 
         :class="[
-          'bg-gray-800 shadow-lg border-r border-gray-700 min-h-screen transition-all duration-300 ease-in-out',
+          'bg-gray-800 shadow-lg border-r border-gray-700 min-h-screen flex-shrink-0 transition-all duration-300 ease-in-out',
           isMobile 
             ? (isSidebarOpen ? 'fixed inset-y-0 left-0 z-50 w-64' : 'hidden')
             : 'w-64'
@@ -341,7 +341,7 @@
       </div>
 
       <!-- Main Content -->
-      <div class="flex-1 p-4 sm:p-6">
+      <div class="min-w-0 flex-1 p-4 sm:p-6">
         <!-- Mobile Sidebar Toggle Button -->
         <button
           v-if="isMobile"

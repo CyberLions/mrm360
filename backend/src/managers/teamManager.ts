@@ -8,6 +8,7 @@ import {
 } from '@/types';
 import { logger } from '@/utils/logger';
 import { Errors } from '@/middleware/errorHandler';
+import { inferSemester } from '@/utils/semester';
 
 export class TeamManager {
   async createTeam(data: CreateTeamRequest): Promise<TeamProfile> {
@@ -45,6 +46,7 @@ export class TeamManager {
           subtype: data.subtype,
           parentTeamId: data.parentTeamId,
           groupId: data.groupId
+          ,semester: data.semester || inferSemester().semester
         }
       });
 
@@ -57,6 +59,7 @@ export class TeamManager {
         subtype: team.subtype || undefined,
         parentTeamId: team.parentTeamId || undefined,
         groupId: team.groupId || undefined,
+        semester: team.semester,
         createdAt: team.createdAt,
         updatedAt: team.updatedAt
       };
@@ -108,6 +111,7 @@ export class TeamManager {
         subtype: team.subtype || undefined,
         parentTeamId: team.parentTeamId || undefined,
         groupId: team.groupId || undefined,
+        semester: team.semester,
         createdAt: team.createdAt,
         updatedAt: team.updatedAt
       };
@@ -119,7 +123,7 @@ export class TeamManager {
 
   async getTeams(params: TeamQueryParams): Promise<PaginatedResponse<TeamProfile>> {
     try {
-      const { page = 1, limit = 20, search, type, groupId } = params;
+      const { page = 1, limit = 20, search, type, groupId, semester } = params;
       const skip = (page - 1) * limit;
 
       // Build where clause
@@ -139,6 +143,7 @@ export class TeamManager {
       if (groupId) {
         where.groupId = groupId;
       }
+      if (semester) where.semester = semester;
 
       // Get total count
       const total = await prisma.team.count({ where });
@@ -175,6 +180,7 @@ export class TeamManager {
           subtype: team.subtype || undefined,
           parentTeamId: team.parentTeamId || undefined,
           groupId: team.groupId || undefined,
+          semester: team.semester,
           createdAt: team.createdAt,
           updatedAt: team.updatedAt
         })),
@@ -233,6 +239,7 @@ export class TeamManager {
           subtype: data.subtype,
           parentTeamId: data.parentTeamId,
           groupId: data.groupId
+          ,semester: data.semester
         }
       });
 
@@ -245,6 +252,7 @@ export class TeamManager {
         subtype: team.subtype || undefined,
         parentTeamId: team.parentTeamId || undefined,
         groupId: team.groupId || undefined,
+        semester: team.semester,
         createdAt: team.createdAt,
         updatedAt: team.updatedAt
       };

@@ -8,6 +8,7 @@ import {
   sendWaitlistPromotedEmail,
 } from '@/services/eventEmailService';
 import { TaskManager } from '@/managers/taskManager';
+import { inferSemester } from '@/utils/semester';
 
 export interface CreateEventData {
   title: string;
@@ -25,6 +26,7 @@ export interface CreateEventData {
   membersPerTeam?: number;
   autoAssignEnabled?: boolean;
   allowTeamSwitching?: boolean;
+  semester?: string;
 }
 
 export interface UpdateEventData extends Partial<CreateEventData> {}
@@ -64,6 +66,7 @@ export class EventManager {
           linkedTeamId: data.linkedTeamId && data.linkedTeamId.trim() !== '' ? data.linkedTeamId : null,
           wiretapWorkshopId: data.wiretapWorkshopId && data.wiretapWorkshopId.trim() !== '' ? data.wiretapWorkshopId : null,
           seriesId: data.seriesId && data.seriesId.trim() !== '' ? data.seriesId : null,
+          semester: data.semester || inferSemester(data.startTime).semester,
           attendanceType: data.attendanceType,
           attendanceCap: data.attendanceCap,
           waitlistEnabled: data.waitlistEnabled || false,
@@ -135,6 +138,7 @@ export class EventManager {
     search?: string;
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
+    semester?: string;
   }): Promise<Event[]> {
     try {
       logger.info('Fetching all events', { filters });
@@ -152,6 +156,7 @@ export class EventManager {
       if (filters?.seriesId) {
         where.seriesId = filters.seriesId;
       }
+      if (filters?.semester) where.semester = filters.semester;
 
       if (filters?.startDate || filters?.endDate) {
         where.startTime = {};
@@ -218,6 +223,7 @@ export class EventManager {
     search?: string;
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
+    semester?: string;
   }): Promise<Event[]> {
     try {
       logger.info('Fetching events for user', { userId, filters });
@@ -255,6 +261,7 @@ export class EventManager {
       if (filters?.seriesId) {
         where.seriesId = filters.seriesId;
       }
+      if (filters?.semester) where.semester = filters.semester;
 
       if (filters?.startDate || filters?.endDate) {
         where.startTime = {};
@@ -348,6 +355,9 @@ export class EventManager {
       logger.info('Updating event', { eventId: id, updates: data });
       
       const updateData: any = { ...data };
+      if (data.startTime && data.semester === undefined) {
+        updateData.semester = inferSemester(data.startTime).semester;
+      }
       if (data.linkedTeamId !== undefined) {
         updateData.linkedTeamId = data.linkedTeamId && data.linkedTeamId.trim() !== '' ? data.linkedTeamId : null;
       }

@@ -62,17 +62,6 @@ services:
       timeout: 5s
       retries: 5
 
-  adminer:
-    image: adminer
-    restart: unless-stopped
-    networks:
-      - app-network
-    ports:
-      - "3014:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
-
 volumes:
   postgres_data:
   redis_data:

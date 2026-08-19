@@ -4,6 +4,7 @@ export interface Payment {
   userId: string
   amount: number
   paymentType: 'SEMESTER' | 'YEARLY'
+  semester: string
   status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUNDED'
   paymentMethod?: string
   transactionId?: string
@@ -32,6 +33,7 @@ export interface PaymentStats {
 
 export interface UserPaymentStatus {
   isPaid: boolean
+  payments: Payment[]
   activePayments: Payment[]
   expiredPayments: Payment[]
   nextExpiration?: string
@@ -86,6 +88,7 @@ export interface Team {
   description?: string
   type: 'COMPETITION' | 'DEVELOPMENT'
   subtype?: 'BLUE' | 'RED' | 'CTF'
+  semester: string
   parentTeamId?: string
   parentTeam?: Team
   subteams: Team[]
@@ -122,6 +125,7 @@ export interface TeamCreate {
   description?: string
   type: 'COMPETITION' | 'DEVELOPMENT'
   subtype?: 'BLUE' | 'RED' | 'CTF'
+  semester?: string
   parentTeamId?: string
   groupId?: string
   members: { userId: string; role: 'MEMBER' | 'LEADER' }[]
@@ -133,6 +137,7 @@ export interface TeamUpdate {
   description?: string
   type?: 'COMPETITION' | 'DEVELOPMENT'
   subtype?: 'BLUE' | 'RED' | 'CTF'
+  semester?: string
   parentTeamId?: string
   groupId?: string
   members?: { userId: string; role: 'MEMBER' | 'LEADER' }[]
@@ -228,6 +233,7 @@ export interface Event {
   startTime: string
   endTime: string
   category: 'MEETING' | 'COMPETITION' | 'WORKSHOP' | 'SOCIAL' | 'TRAINING'
+  semester: string
   linkedTeamId?: string
   linkedTeam?: Team
   wiretapWorkshopId?: string
@@ -266,6 +272,7 @@ export interface EventCreate {
   startTime: string
   endTime: string
   category: 'MEETING' | 'COMPETITION' | 'WORKSHOP' | 'SOCIAL' | 'TRAINING'
+  semester?: string
   linkedTeamId?: string
   wiretapWorkshopId?: string
   seriesId?: string
@@ -281,6 +288,7 @@ export interface EventUpdate {
   startTime?: string
   endTime?: string
   category?: 'MEETING' | 'COMPETITION' | 'WORKSHOP' | 'SOCIAL' | 'TRAINING'
+  semester?: string
   linkedTeamId?: string
   wiretapWorkshopId?: string
   seriesId?: string
@@ -418,11 +426,13 @@ export interface EventFilters extends SearchFilters {
   linkedTeamId?: string
   seriesId?: string
   category?: 'MEETING' | 'COMPETITION' | 'WORKSHOP' | 'SOCIAL' | 'TRAINING'
+  semester?: string
 }
 
 export interface TeamFilters extends SearchFilters {
   type?: TeamType
   parentTeamId?: string
+  semester?: string
 }
 
 // Onboarding types

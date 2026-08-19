@@ -7,6 +7,7 @@ export interface CreatePaymentData {
   paymentType: 'SEMESTER' | 'YEARLY'
   paymentMethod?: string
   transactionId?: string
+  semester?: string
 }
 
 export interface UpdatePaymentData {
@@ -25,12 +26,14 @@ export class PaymentService {
     userId?: string
     status?: string
     paymentType?: string
+    semester?: string
   }): Promise<{ payments: Payment[] }> {
     const params = new URLSearchParams()
     
     if (filters?.userId) params.append('userId', filters.userId)
     if (filters?.status) params.append('status', filters.status)
     if (filters?.paymentType) params.append('paymentType', filters.paymentType)
+    if (filters?.semester) params.append('semester', filters.semester)
 
     const queryString = params.toString()
     const url = queryString ? `${this.baseUrl}?${queryString}` : this.baseUrl
@@ -82,6 +85,7 @@ export class PaymentService {
     const data = response.data
     return {
       isPaid: data.isPaid,
+      payments: data.payments,
       activePayments: data.activePayments,
       expiredPayments: data.expiredPayments,
       nextExpiration: data.nextExpiration

@@ -15,8 +15,7 @@ export class ScheduledJobService {
   async startScheduledJobs(): Promise<void> {
     logger.info('Starting scheduled jobs');
     
-    // Start daily payment status check
-    await this.startDailyPaymentStatusCheck();
+    await this.startWeeklyPaymentStatusCheck();
     
     logger.info('All scheduled jobs started');
   }
@@ -36,11 +35,10 @@ export class ScheduledJobService {
   }
 
   /**
-   * Start daily payment status check
-   * Runs every day at 2:00 AM
+   * Start weekly payment status check
    */
-  private async startDailyPaymentStatusCheck(): Promise<void> {
-    logger.info('Starting daily payment status check scheduler');
+  private async startWeeklyPaymentStatusCheck(): Promise<void> {
+    logger.info('Starting weekly payment status check scheduler');
     
     // Calculate time until next 2:00 AM
     const now = new Date();
@@ -54,38 +52,38 @@ export class ScheduledJobService {
     
     const timeUntilNext = nextCheck.getTime() - now.getTime();
     
-    logger.info('Daily payment status check scheduled', {
+    logger.info('Weekly payment status check scheduled', {
       nextCheck: nextCheck.toISOString(),
       timeUntilNext: `${Math.round(timeUntilNext / 1000 / 60)} minutes`
     });
     
     // Schedule the first check
     setTimeout(() => {
-      this.runDailyPaymentStatusCheck();
+      this.runWeeklyPaymentStatusCheck();
       
-      // Then run every 24 hours
+      // Then run weekly
       this.paymentStatusCheckInterval = setInterval(() => {
-        this.runDailyPaymentStatusCheck();
-      }, 24 * 60 * 60 * 1000); // 24 hours
+        this.runWeeklyPaymentStatusCheck();
+      }, 7 * 24 * 60 * 60 * 1000);
       
     }, timeUntilNext);
   }
 
   /**
-   * Run the daily payment status check
+   * Run the weekly payment status check
    */
-  private async runDailyPaymentStatusCheck(): Promise<void> {
+  private async runWeeklyPaymentStatusCheck(): Promise<void> {
     try {
-      logger.info('Running daily payment status check');
+      logger.info('Running weekly payment status check');
       
       // Enqueue the payment status check job
       await this.taskManager.enqueuePaymentStatusJob({
         type: 'check-expired'
       });
       
-      logger.info('Daily payment status check job enqueued');
+      logger.info('Weekly payment status check job enqueued');
     } catch (error) {
-      logger.error('Failed to enqueue daily payment status check', { error });
+      logger.error('Failed to enqueue weekly payment status check', { error });
     }
   }
 
@@ -116,7 +114,7 @@ export class ScheduledJobService {
       paymentStatusCheck: {
         active: this.paymentStatusCheckInterval !== null,
         nextRun: this.paymentStatusCheckInterval ? 
-          new Date(Date.now() + 24 * 60 * 60 * 1000) : undefined
+          new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) : undefined
       }
     };
   }

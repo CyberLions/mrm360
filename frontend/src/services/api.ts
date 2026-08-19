@@ -193,6 +193,11 @@ class ApiService {
     return response.data
   }
 
+  async getSemesters(): Promise<{ teams: string[]; events: string[] }> {
+    const response = await this.api.get('/semesters')
+    return response.data
+  }
+
   async getEvent(id: string): Promise<Event> {
     const response = await this.api.get(`/events/${id}`)
     return response.data.data
@@ -285,7 +290,7 @@ class ApiService {
     return response.data.data
   }
 
-  async enqueueTask(taskName: 'email' | 'qr-code' | 'sync-groups' | 'provision-team' | 'provision-event', data: any): Promise<{ success: boolean; jobId: string; backgroundTaskId?: string; message?: string }> {
+  async enqueueTask(taskName: 'email' | 'qr-code' | 'sync-groups' | 'provision-team' | 'provision-event' | 'payment-status', data: any = {}): Promise<{ success: boolean; jobId: string; backgroundTaskId?: string; message?: string }> {
     const response = await this.api.post('/tasks/enqueue', { type: taskName, data })
     return response.data
   }

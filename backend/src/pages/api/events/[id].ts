@@ -7,6 +7,7 @@ import { withAuth } from '@/middleware/authMiddleware';
 import { withPermissions } from '@/middleware/permissionMiddleware';
 import { logger } from '@/utils/logger';
 import { getEffectiveSystemRole } from '@/utils/roleUtils';
+import { isValidSemester } from '@/utils/semester';
 
 // Validation schemas
 const updateEventSchema = z.object({
@@ -25,6 +26,7 @@ const updateEventSchema = z.object({
   membersPerTeam: z.number().int().positive().max(20).optional(),
   autoAssignEnabled: z.boolean().optional(),
   allowTeamSwitching: z.boolean().optional(),
+  semester: z.string().refine(isValidSemester).optional(),
 });
 
 /**

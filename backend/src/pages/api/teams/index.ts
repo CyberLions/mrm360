@@ -10,6 +10,7 @@ import { logger } from '@/utils/logger';
 import { addJobToQueue } from '../../../tasks/queue';
 import { handleApiError, ApiError } from '@/middleware/errorHandler';
 import { getEffectiveSystemRole } from '@/utils/roleUtils';
+import { inferSemester, isValidSemester } from '@/utils/semester';
 
 // Validation schemas
 const createTeamSchema = z.object({
@@ -19,6 +20,7 @@ const createTeamSchema = z.object({
   subtype: z.enum(['BLUE', 'RED', 'CTF']).optional(),
   parentTeamId: z.string().optional(),
   groupId: z.string().optional(),
+  semester: z.string().refine(isValidSemester).optional(),
   members: z.array(z.object({
     userId: z.string(),
     role: z.enum(['MEMBER', 'LEADER']).default('MEMBER')
@@ -41,6 +43,7 @@ const updateTeamSchema = z.object({
   subtype: z.enum(['BLUE', 'RED', 'CTF']).optional(),
   parentTeamId: z.string().optional(),
   groupId: z.string().optional(),
+  semester: z.string().refine(isValidSemester).optional(),
   memberIds: z.array(z.string()).optional()
 });
 
@@ -48,8 +51,10 @@ const listTeamsSchema = z.object({
   page: z.string().optional().transform(val => parseInt(val || '1')),
   limit: z.string().optional().transform(val => parseInt(val || '20')),
   search: z.string().optional(),
+  query: z.string().optional(),
   type: z.enum(['COMPETITION', 'DEVELOPMENT']).optional(),
   groupId: z.string().optional()
+  ,semester: z.string().refine(isValidSemester).optional()
 });
 
 /**
@@ -186,7 +191,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       const user = (req as any).user;
       const effectiveRole = getEffectiveSystemRole(user.role);
       
-      const { page = 1, limit = 20, search, type, groupId } = queryParams;
+      const { page = 1, limit = 20, type, groupId, semester } = queryParams;
+      const search = queryParams.search || queryParams.query;
       const skip = (page - 1) * limit;
 
       // Build where clause
@@ -200,6 +206,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       if (groupId) {
         where.groupId = groupId;
       }
+      if (semester) where.semester = semester;
 
       let teams;
       let total;
@@ -324,7 +331,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           type: data.type,
           subtype: data.subtype,
           parentTeamId: data.parentTeamId,
-          groupId: data.groupId
+          groupId: data.groupId,
+          semester: data.semester || inferSemester().semester
         },
         include: {
           group: true,

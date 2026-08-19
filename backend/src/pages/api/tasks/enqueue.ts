@@ -78,12 +78,25 @@ const enqueueProvisionEventSchema = z.object({
   }).optional(),
 });
 
+const enqueuePaymentStatusSchema = z.object({
+  type: z.literal('payment-status'),
+  data: z.object({
+    userId: z.string().optional(),
+  }).default({}),
+  options: z.object({
+    delay: z.number().min(0).optional(),
+    priority: z.number().min(0).max(10).optional(),
+    attempts: z.number().min(1).max(10).optional(),
+  }).optional(),
+});
+
 const enqueueJobSchema = z.union([
   enqueueEmailJobSchema,
   enqueueQRCodeJobSchema,
   enqueueSyncGroupsJobSchema,
   enqueueProvisionTeamSchema,
   enqueueProvisionEventSchema,
+  enqueuePaymentStatusSchema,
 ]);
 
 /**
@@ -257,6 +270,14 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       case 'sync-groups':
         jobId = await taskManager.enqueueSyncGroupsJob(body.data, body.options);
         message = 'Sync groups job enqueued successfully';
+        break;
+
+      case 'payment-status':
+        jobId = await taskManager.enqueuePaymentStatusJob({
+          type: body.data.userId ? 'update-user-status' : 'check-expired',
+          userId: body.data.userId,
+        }, body.options);
+        message = 'Payment status re-evaluation enqueued successfully';
         break;
 
       case 'provision-team': {

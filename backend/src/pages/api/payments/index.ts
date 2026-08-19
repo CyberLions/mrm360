@@ -5,6 +5,7 @@ import { prisma } from '@/models/prismaClient';
 import { logger } from '@/utils/logger';
 import { withCORS } from '@/middleware/corsMiddleware';
 import { PaymentType } from '@prisma/client';
+import { isValidSemester } from '@/utils/semester';
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   const paymentService = new PaymentService(prisma);
@@ -25,7 +26,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 }
 
 async function handleGetPayments(req: NextApiRequest, res: NextApiResponse, paymentService: PaymentService) {
-  const { userId, status, paymentType } = req.query;
+  const { userId, status, paymentType, semester } = req.query;
 
   try {
     let payments;
@@ -48,6 +49,7 @@ async function handleGetPayments(req: NextApiRequest, res: NextApiResponse, paym
       if (paymentType) {
         where.paymentType = paymentType;
       }
+      if (semester) where.semester = semester;
 
       payments = await prisma.payment.findMany({
         where,
@@ -73,7 +75,7 @@ async function handleGetPayments(req: NextApiRequest, res: NextApiResponse, paym
 }
 
 async function handleCreatePayment(req: NextApiRequest, res: NextApiResponse, paymentService: PaymentService) {
-  const { userId, amount, paymentType, paymentMethod, transactionId } = req.body;
+  const { userId, amount, paymentType, paymentMethod, transactionId, semester } = req.body;
 
   // Validate required fields
   if (!userId || !amount || !paymentType) {
@@ -87,6 +89,9 @@ async function handleCreatePayment(req: NextApiRequest, res: NextApiResponse, pa
     return res.status(400).json({ 
       error: 'Invalid payment type. Must be SEMESTER or YEARLY' 
     });
+  }
+  if (semester && (typeof semester !== 'string' || !isValidSemester(semester))) {
+    return res.status(400).json({ error: 'Semester must use SPRING_YYYY or FALL_YYYY' });
   }
 
   // Validate amount
@@ -102,7 +107,8 @@ async function handleCreatePayment(req: NextApiRequest, res: NextApiResponse, pa
       amount,
       paymentType,
       paymentMethod,
-      transactionId
+      transactionId,
+      semester
     });
 
     logger.info('Payment created', { 

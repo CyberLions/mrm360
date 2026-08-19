@@ -89,6 +89,7 @@ export interface TeamProfile {
   subtype?: TeamSubtype;
   parentTeamId?: string;
   groupId?: string;
+  semester?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -100,6 +101,7 @@ export interface CreateTeamRequest {
   subtype?: TeamSubtype;
   parentTeamId?: string;
   groupId?: string;
+  semester?: string;
 }
 
 export interface UpdateTeamRequest {
@@ -109,6 +111,7 @@ export interface UpdateTeamRequest {
   subtype?: TeamSubtype;
   parentTeamId?: string;
   groupId?: string;
+  semester?: string;
 }
 
 // Event types
@@ -239,6 +242,7 @@ export interface TeamQueryParams {
   search?: string;
   type?: TeamType;
   groupId?: string;
+  semester?: string;
 }
 
 export interface EventQueryParams {

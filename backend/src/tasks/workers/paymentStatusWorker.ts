@@ -6,6 +6,7 @@ import { PaymentService } from '@/services/paymentService';
 export interface PaymentStatusJobData {
   type: 'check-expired' | 'update-user-status';
   userId?: string;
+  results?: unknown;
 }
 
 export async function processPaymentStatusJob(job: Job<PaymentStatusJobData>) {
@@ -90,6 +91,7 @@ async function processUserStatusUpdate(
   logger.info('Updating user payment status', { userId });
   
   const paymentStatus = await paymentService.getUserPaymentStatus(userId);
+  await paymentService.updateUserPaidStatus(userId);
   
   // Update job progress
   await job.updateProgress(100);

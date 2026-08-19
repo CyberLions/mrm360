@@ -1,6 +1,7 @@
 import { PrismaClient, PaymentType, PaymentStatus } from '@prisma/client';
 import { logger } from '@/utils/logger';
 import { MemberPaidStatusService } from './memberPaidStatusService';
+import { inferSemester, isValidSemester } from '@/utils/semester';
 
 export interface CreatePaymentData {
   userId: string;
@@ -8,6 +9,7 @@ export interface CreatePaymentData {
   paymentType: PaymentType;
   paymentMethod?: string;
   transactionId?: string;
+  semester?: string;
 }
 
 export interface PaymentExpirationResult {
@@ -34,13 +36,17 @@ export class PaymentService {
       logger.info('Creating payment', { userId: data.userId, paymentType: data.paymentType });
 
       // Calculate expiration date based on payment type
-      const expiresAt = this.calculateExpirationDate(data.paymentType);
+      const assignment = data.semester
+        ? this.getSemesterAssignment(data.semester)
+        : inferSemester();
+      const expiresAt = this.calculateExpirationDate(data.paymentType, assignment.semester);
 
       const payment = await this.prisma.payment.create({
         data: {
           userId: data.userId,
           amount: data.amount,
           paymentType: data.paymentType,
+          semester: assignment.semester,
           paymentMethod: data.paymentMethod,
           transactionId: data.transactionId,
           expiresAt,
@@ -130,6 +136,7 @@ export class PaymentService {
    */
   async getUserPaymentStatus(userId: string): Promise<{
     isPaid: boolean;
+    payments: any[];
     activePayments: any[];
     expiredPayments: any[];
     nextExpiration?: Date;
@@ -162,6 +169,7 @@ export class PaymentService {
 
       return {
         isPaid,
+        payments,
         activePayments,
         expiredPayments,
         nextExpiration
@@ -244,7 +252,7 @@ export class PaymentService {
   /**
    * Update user's paid status based on their active payments
    */
-  private async updateUserPaidStatus(userId: string): Promise<void> {
+  async updateUserPaidStatus(userId: string): Promise<void> {
     try {
       const paymentStatus = await this.getUserPaymentStatus(userId);
       
@@ -261,21 +269,31 @@ export class PaymentService {
   /**
    * Calculate expiration date based on payment type
    */
-  private calculateExpirationDate(paymentType: PaymentType): Date {
-    const now = new Date();
-    
+  private calculateExpirationDate(paymentType: PaymentType, semester: string): Date {
+    const assignment = this.getSemesterAssignment(semester);
     switch (paymentType) {
       case PaymentType.SEMESTER:
-        // 4 months from now (typical semester length)
-        return new Date(now.getTime() + (4 * 30 * 24 * 60 * 60 * 1000));
+        return assignment.endsAt;
       
       case PaymentType.YEARLY:
-        // 12 months from now
-        return new Date(now.getTime() + (12 * 30 * 24 * 60 * 60 * 1000));
+        return assignment.season === 'FALL'
+          ? new Date(Date.UTC(assignment.year + 1, 7, 1))
+          : new Date(Date.UTC(assignment.year + 1, 0, 1));
       
       default:
         throw new Error(`Unknown payment type: ${paymentType}`);
     }
+  }
+
+  private getSemesterAssignment(semester: string) {
+    if (!isValidSemester(semester)) {
+      throw new Error('Semester must use SPRING_YYYY or FALL_YYYY');
+    }
+    const [season, rawYear] = semester.split('_') as ['SPRING' | 'FALL', string];
+    const year = Number(rawYear);
+    return season === 'FALL'
+      ? { semester, season, year, startsAt: new Date(Date.UTC(year, 7, 1)), endsAt: new Date(Date.UTC(year + 1, 0, 1)) }
+      : { semester, season, year, startsAt: new Date(Date.UTC(year, 0, 1)), endsAt: new Date(Date.UTC(year, 5, 1)) };
   }
 
   /**

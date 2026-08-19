@@ -86,7 +86,7 @@ export const useTaskStore = defineStore('tasks', () => {
     }
   }
 
-  async function enqueueTask(taskName: string, data?: any) {
+  async function enqueueTask(taskName: 'email' | 'qr-code' | 'sync-groups' | 'provision-team' | 'provision-event' | 'payment-status', data?: any) {
     try {
       isLoading.value = true
       error.value = null

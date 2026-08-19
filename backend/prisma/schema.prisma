@@ -30,28 +30,28 @@ model BackgroundTask {
 }
 
 model User {
-  id             String          @id @default(cuid())
-  email          String          @unique
-  username       String?         @unique
-  password       String?
-  firstName      String
-  lastName       String
-  displayName    String?
-  paidStatus     Boolean         @default(false)
-  qrCode         String?         @unique
-  role           Role            @default(MEMBER)
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  authentikId    String?
-  authentikPk    String?
-  checkIns       CheckIn[]
-  discordAccount DiscordAccount?
-  rsvps          RSVP[]
-  userClassRank  UserClassRank?
-  userGroups     UserGroup[]
-  userInterests  UserInterest[]
-  userTeams      UserTeam[]
-  payments       Payment[]
+  id               String            @id @default(cuid())
+  email            String            @unique
+  username         String?           @unique
+  password         String?
+  firstName        String
+  lastName         String
+  displayName      String?
+  paidStatus       Boolean           @default(false)
+  qrCode           String?           @unique
+  role             Role              @default(MEMBER)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  authentikId      String?
+  authentikPk      String?
+  checkIns         CheckIn[]
+  discordAccount   DiscordAccount?
+  rsvps            RSVP[]
+  userClassRank    UserClassRank?
+  userGroups       UserGroup[]
+  userInterests    UserInterest[]
+  userTeams        UserTeam[]
+  payments         Payment[]
   eventTeamMembers EventTeamMember[]
 
   @@map("users")
@@ -90,6 +90,7 @@ model Team {
   subtype      TeamSubtype?
   parentTeamId String?
   groupId      String?
+  semester     String
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
   events       Event[]
@@ -98,6 +99,7 @@ model Team {
   subteams     Team[]       @relation("Subteams")
   userTeams    UserTeam[]
 
+  @@index([semester])
   @@map("teams")
 }
 
@@ -161,45 +163,47 @@ model UserClassRank {
 }
 
 model WorkshopSeries {
-  id                String   @id @default(cuid())
-  name              String
-  description       String?
-  badgeClassId      String   // OpenBadge badge class ID to issue
-  requiredCheckIns  Int      // Number of check-ins needed to earn badge
-  autoIssue         Boolean  @default(true) // Auto-issue badge on check-in threshold, or manual
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  events            Event[]
+  id               String   @id @default(cuid())
+  name             String
+  description      String?
+  badgeClassId     String // OpenBadge badge class ID to issue
+  requiredCheckIns Int // Number of check-ins needed to earn badge
+  autoIssue        Boolean  @default(true) // Auto-issue badge on check-in threshold, or manual
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  events           Event[]
 
   @@map("workshop_series")
 }
 
 model Event {
-  id                String         @id @default(cuid())
-  title             String
-  description       String?
-  startTime         DateTime
-  endTime           DateTime
-  category          EventCategory
-  linkedTeamId      String?
-  wiretapWorkshopId String?
-  seriesId          String?
-  attendanceType    AttendanceType @default(SOFT)
-  checkInCode       String         @unique
-  attendanceCap     Int?           // Maximum number of attendees (null = no cap)
-  waitlistEnabled   Boolean        @default(false) // Whether to enable waitlist when cap is reached
-  teamsEnabled      Boolean        @default(false) // Whether teams are enabled for this event
-  membersPerTeam    Int?           @default(4) // Number of members per team for auto-assignment
-  autoAssignEnabled Boolean        @default(false) // Whether to auto-assign confirmed RSVPs to teams
-  allowTeamSwitching Boolean       @default(false) // Whether users can switch teams themselves
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
-  checkIns          CheckIn[]
-  linkedTeam        Team?          @relation(fields: [linkedTeamId], references: [id])
-  series            WorkshopSeries? @relation(fields: [seriesId], references: [id])
-  rsvps             RSVP[]
-  eventTeams        EventTeam[]
+  id                 String          @id @default(cuid())
+  title              String
+  description        String?
+  startTime          DateTime
+  endTime            DateTime
+  category           EventCategory
+  linkedTeamId       String?
+  wiretapWorkshopId  String?
+  seriesId           String?
+  semester           String
+  attendanceType     AttendanceType  @default(SOFT)
+  checkInCode        String          @unique
+  attendanceCap      Int? // Maximum number of attendees (null = no cap)
+  waitlistEnabled    Boolean         @default(false) // Whether to enable waitlist when cap is reached
+  teamsEnabled       Boolean         @default(false) // Whether teams are enabled for this event
+  membersPerTeam     Int?            @default(4) // Number of members per team for auto-assignment
+  autoAssignEnabled  Boolean         @default(false) // Whether to auto-assign confirmed RSVPs to teams
+  allowTeamSwitching Boolean         @default(false) // Whether users can switch teams themselves
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  checkIns           CheckIn[]
+  linkedTeam         Team?           @relation(fields: [linkedTeamId], references: [id])
+  series             WorkshopSeries? @relation(fields: [seriesId], references: [id])
+  rsvps              RSVP[]
+  eventTeams         EventTeam[]
 
+  @@index([semester])
   @@map("events")
 }
 
@@ -231,14 +235,14 @@ model CheckIn {
 }
 
 model EventTeam {
-  id             String             @id @default(cuid())
-  eventId        String
-  teamNumber     Int                // Team number (1, 2, 3, etc.)
-  wiretapTeamId  String?            // Optional Wiretap team ID for integration
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  event          Event              @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  members        EventTeamMember[]
+  id            String            @id @default(cuid())
+  eventId       String
+  teamNumber    Int // Team number (1, 2, 3, etc.)
+  wiretapTeamId String? // Optional Wiretap team ID for integration
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  event         Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  members       EventTeamMember[]
 
   @@unique([eventId, teamNumber])
   @@map("event_teams")
@@ -248,7 +252,7 @@ model EventTeamMember {
   id          String    @id @default(cuid())
   eventTeamId String
   userId      String
-  email       String    // Store email for wiretap sync
+  email       String // Store email for wiretap sync
   joinedAt    DateTime  @default(now())
   eventTeam   EventTeam @relation(fields: [eventTeamId], references: [id], onDelete: Cascade)
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -340,18 +344,20 @@ enum PaymentStatus {
 }
 
 model Payment {
-  id              String        @id @default(cuid())
-  userId          String
-  amount          Decimal       @db.Decimal(10, 2)
-  paymentType     PaymentType
-  status          PaymentStatus @default(PENDING)
-  paymentMethod   String?       // e.g., "stripe", "paypal", "cash", etc.
-  transactionId   String?       // External payment processor transaction ID
-  paidAt          DateTime?
-  expiresAt       DateTime      // When this payment expires
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id            String        @id @default(cuid())
+  userId        String
+  amount        Decimal       @db.Decimal(10, 2)
+  paymentType   PaymentType
+  semester      String
+  status        PaymentStatus @default(PENDING)
+  paymentMethod String? // e.g., "stripe", "paypal", "cash", etc.
+  transactionId String? // External payment processor transaction ID
+  paidAt        DateTime?
+  expiresAt     DateTime // When this payment expires
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([semester])
   @@map("payments")
 }

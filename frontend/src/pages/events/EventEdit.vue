@@ -92,6 +92,7 @@
                   <option value="TRAINING">Training</option>
                 </select>
               </div>
+
             </div>
 
             <div>

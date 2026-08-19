@@ -86,6 +86,21 @@
               </div>
 
               <div>
+                <label for="semester" class="block text-sm font-medium text-gray-300 mb-2">
+                  Semester
+                </label>
+                <select
+                  id="semester"
+                  v-model="form.semester"
+                  class="w-full px-3 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-700 text-gray-100"
+                >
+                  <option v-for="semester in semesterOptions" :key="semester" :value="semester">
+                    {{ formatSemester(semester) }}
+                  </option>
+                </select>
+              </div>
+
+              <div>
                 <label for="parentTeam" class="block text-sm font-medium text-gray-300 mb-2">
                   Parent Team
                 </label>
@@ -394,6 +409,7 @@ import BaseButton from '@/components/common/BaseButton.vue'
 import type { Team, TeamCreate, TeamUpdate, User } from '@/types/api'
 import { apiService } from '@/services/api'
 import { UserGroupIcon } from '@heroicons/vue/24/outline'
+import { buildSemesterOptions, formatSemester, inferCurrentSemester } from '@/utils/semester'
 
 const route = useRoute()
 const router = useRouter()
@@ -412,6 +428,7 @@ const newMemberEmail = ref('')
 const selectedUser = ref<User | null>(null)
 const selectedRole = ref('MEMBER')
 const errors = ref<Record<string, string>>({})
+const usedSemesters = ref<string[]>([])
 
 // User search functionality
 const searchResults = ref<User[]>([])
@@ -424,6 +441,7 @@ const form = reactive({
   name: '',
   type: '',
   subtype: '',
+  semester: inferCurrentSemester(),
   description: '',
   parentTeamId: '',
   groupId: '',
@@ -442,6 +460,7 @@ const form = reactive({
 
 // Computed properties
 const isEditing = computed(() => !!route.params.id)
+const semesterOptions = computed(() => buildSemesterOptions(usedSemesters.value))
 
 const availableUsers = computed(() => {
   return userStore.users.filter(user => user.isActive)
@@ -578,6 +597,7 @@ const handleSubmit = async () => {
         name: form.name,
         type: form.type as 'COMPETITION' | 'DEVELOPMENT',
         subtype: form.subtype as 'BLUE' | 'RED' | 'CTF' | undefined,
+        semester: form.semester,
         description: form.description,
         parentTeamId: form.parentTeamId || undefined,
         groupId: form.groupId || undefined,
@@ -591,6 +611,7 @@ const handleSubmit = async () => {
         name: form.name,
         type: form.type as 'COMPETITION' | 'DEVELOPMENT',
         subtype: form.subtype as 'BLUE' | 'RED' | 'CTF' | undefined,
+        semester: form.semester,
         description: form.description,
         parentTeamId: form.parentTeamId || undefined,
         groupId: form.groupId || undefined,
@@ -618,6 +639,7 @@ const loadTeam = async () => {
       name: team.name,
       type: team.type,
       subtype: team.subtype || '',
+      semester: team.semester || inferCurrentSemester(),
       description: team.description || '',
       parentTeamId: team.parentTeamId || '',
       groupId: team.groupId || '',
@@ -664,10 +686,12 @@ const loadTeam = async () => {
 
 // Lifecycle
 onMounted(async () => {
-  await Promise.all([
+  const [, , semesters] = await Promise.all([
     userStore.fetchUsers(),
-    teamStore.fetchTeams()
+    teamStore.fetchTeams(),
+    apiService.getSemesters()
   ])
+  usedSemesters.value = semesters.teams
   
   if (isEditing.value) {
     await loadTeam()

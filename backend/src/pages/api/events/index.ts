@@ -9,6 +9,7 @@ import { withAuth } from '@/middleware/authMiddleware';
 import { withPermissions } from '@/middleware/permissionMiddleware';
 import { logger } from '@/utils/logger';
 import { getEffectiveSystemRole } from '@/utils/roleUtils';
+import { isValidSemester } from '@/utils/semester';
 
 // Validation schemas
 const createEventSchema = z.object({
@@ -23,6 +24,7 @@ const createEventSchema = z.object({
   attendanceType: z.enum(['STRICT', 'SOFT']),
   attendanceCap: z.number().int().positive().optional(),
   waitlistEnabled: z.boolean().optional(),
+  semester: z.string().refine(isValidSemester).optional(),
 });
 
 const listEventsSchema = z.object({
@@ -37,6 +39,7 @@ const listEventsSchema = z.object({
   endDate: z.string().optional().transform(val => val ? new Date(val) : undefined),
   sortBy: z.string().optional().default('startTime'),
   sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
+  semester: z.string().refine(isValidSemester).optional(),
 });
 
 /**
@@ -207,6 +210,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           search: searchTerm,
           sortBy: queryParams.sortBy,
           sortOrder: queryParams.sortOrder,
+          semester: queryParams.semester,
         });
       } else {
         result = await eventManager.getAllEvents({
@@ -218,6 +222,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           search: searchTerm,
           sortBy: queryParams.sortBy,
           sortOrder: queryParams.sortOrder,
+          semester: queryParams.semester,
         });
       }
 

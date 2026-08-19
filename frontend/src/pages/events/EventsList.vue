@@ -80,6 +80,19 @@
             class="w-full px-4 py-2.5 bg-gray-700/50 border border-gray-600/50 rounded-lg text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all duration-200"
           />
         </div>
+
+        <div class="space-y-2">
+          <label for="semester" class="flex items-center text-sm font-medium text-gray-300">Semester</label>
+          <select
+            id="semester"
+            v-model="filters.semester"
+            class="w-full px-4 py-2.5 bg-gray-700/50 border border-gray-600/50 rounded-lg text-gray-100 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
+          >
+            <option v-for="semester in semesterOptions" :key="semester" :value="semester">
+              {{ formatSemester(semester) }}
+            </option>
+          </select>
+        </div>
         
         <!-- Category -->
         <div class="space-y-2">
@@ -229,6 +242,7 @@
                     <div class="text-sm font-medium text-gray-100 truncate">
                       {{ event.title }}
                     </div>
+                    <div class="text-xs text-blue-300">{{ formatSemester(event.semester) }}</div>
                     <div class="text-xs sm:text-sm text-gray-400 truncate max-w-[150px] sm:max-w-xs" :title="event.description">
                       {{ event.description }}
                     </div>
@@ -409,6 +423,8 @@ import { usePermissions } from '@/composables/usePermissions'
 import BaseButton from '@/components/common/BaseButton.vue'
 import { CalendarIcon } from '@heroicons/vue/24/outline'
 import type { Event } from '@/types/api'
+import apiService from '@/services/api'
+import { buildSemesterOptions, formatSemester, inferCurrentSemester } from '@/utils/semester'
 
 const router = useRouter()
 const eventStore = useEventStore()
@@ -420,6 +436,7 @@ const loading = ref(false)
 const viewMode = ref<'table' | 'calendar'>('table')
 const currentPage = ref(1)
 const itemsPerPage = 10
+const usedSemesters = ref<string[]>([])
 
 // Sorting state
 const sortBy = ref<string>('startTime')
@@ -431,8 +448,11 @@ const filters = reactive({
   linkedTeamId: '',
   seriesId: '',
   dateRange: '',
-  status: '' as 'upcoming' | 'ongoing' | 'past'
+  status: '' as 'upcoming' | 'ongoing' | 'past',
+  semester: inferCurrentSemester()
 })
+
+const semesterOptions = computed(() => buildSemesterOptions(usedSemesters.value))
 
 
 
@@ -498,6 +518,8 @@ const calendarDays = computed(() => {
 })
 
 onMounted(async () => {
+  const semesters = await apiService.getSemesters()
+  usedSemesters.value = semesters.events
   await loadData()
 })
 
@@ -522,7 +544,8 @@ const loadData = async () => {
         linkedTeamId: filters.linkedTeamId || undefined,
         seriesId: filters.seriesId || undefined,
         sortBy: sortBy.value,
-        sortOrder: sortOrder.value
+        sortOrder: sortOrder.value,
+        semester: filters.semester
       }),
       teamStore.fetchTeams(),
       seriesStore.fetchAllSeries()
@@ -541,6 +564,7 @@ const clearFilters = () => {
   filters.linkedTeamId = ''
   filters.seriesId = ''
   filters.status = '' as 'upcoming' | 'ongoing' | 'past'
+  filters.semester = inferCurrentSemester()
   sortBy.value = 'startTime'
   sortOrder.value = 'desc'
   currentPage.value = 1

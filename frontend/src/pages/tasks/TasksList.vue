@@ -8,7 +8,14 @@
           Monitor and manage background tasks and job queues in MRM360.
         </p>
       </div>
-      <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
+      <div class="mt-4 sm:mt-0 sm:ml-16 flex gap-2">
+        <BaseButton
+          @click="triggerTask('payment-status')"
+          :loading="triggeringTask"
+          variant="primary"
+        >
+          Re-evaluate payments
+        </BaseButton>
         <BaseButton
           @click="refreshTasks"
           :loading="loading"
@@ -454,7 +461,7 @@ const refreshTasks = async () => {
   }
 }
 
-const triggerTask = async (type: string) => {
+const triggerTask = async (type: 'payment-status') => {
   triggeringTask.value = true
   try {
     await taskStore.enqueueTask(type)

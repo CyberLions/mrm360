@@ -121,6 +121,8 @@
           </div>
         </div>
 
+        <PaymentHistoryList :user-id="user.id" />
+
         <!-- Teams Card -->
         <div class="bg-gray-800 shadow rounded-lg border border-gray-700">
           <div class="px-4 py-5 sm:p-6">
@@ -507,6 +509,7 @@ import QRCodeVue3 from 'qrcode-vue3'
 import type { User, BadgeClass } from '@/types/api'
 import { useToast } from 'vue-toastification'
 import apiService from '@/services/api'
+import PaymentHistoryList from '@/components/payments/PaymentHistoryList.vue'
 
 const route = useRoute()
 const router = useRouter()

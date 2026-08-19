@@ -11,6 +11,7 @@ import { addJobToQueue } from '../../../tasks/queue';
 import { TeamProvisioningTask } from '../../../types';
 import { handleApiError, ApiError } from '@/middleware/errorHandler';
 import { getEffectiveSystemRole } from '@/utils/roleUtils';
+import { isValidSemester } from '@/utils/semester';
 
 // Validation schemas
 const updateTeamSchema = z.object({
@@ -20,6 +21,7 @@ const updateTeamSchema = z.object({
   subtype: z.enum(['BLUE', 'RED', 'CTF']).optional(),
   parentTeamId: z.string().optional(),
   groupId: z.string().optional(),
+  semester: z.string().refine(isValidSemester).optional(),
   members: z.array(z.object({
     userId: z.string(),
     role: z.enum(['MEMBER', 'LEADER']).default('MEMBER')
@@ -265,7 +267,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           type: data.type,
           subtype: data.subtype,
           parentTeamId: data.parentTeamId,
-          groupId: data.groupId
+          groupId: data.groupId,
+          semester: data.semester
         },
         include: {
           group: true,

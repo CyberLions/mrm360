@@ -72,6 +72,8 @@
 
         <!-- Right Column: Settings -->
         <div class="lg:col-span-2 space-y-6">
+          <PaymentHistoryList v-if="user?.id" :user-id="user.id" />
+
           <!-- Discord Integration -->
           <div class="bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-700">
             <h3 class="text-lg font-semibold text-gray-100 mb-4">
@@ -381,6 +383,7 @@ import { useAuthStore } from '@/stores/authStore'
 import QRCodeVue3 from 'qrcode-vue3'
 import type { User } from '@/types/api'
 import { useToast } from 'vue-toastification'
+import PaymentHistoryList from '@/components/payments/PaymentHistoryList.vue'
 
 const authStore = useAuthStore()
 const toast = useToast()

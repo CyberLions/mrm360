@@ -34,7 +34,7 @@
         </BaseButton>
       </div>
       
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <!-- Search -->
         <div class="space-y-2">
           <label for="search" class="flex items-center text-sm font-medium text-gray-300">
@@ -90,6 +90,19 @@
             <option value="CTF">CTF</option>
           </select>
         </div>
+
+        <div class="space-y-2">
+          <label for="semester" class="flex items-center text-sm font-medium text-gray-300">Semester</label>
+          <select
+            id="semester"
+            v-model="filters.semester"
+            class="w-full px-4 py-2.5 bg-gray-700/50 border border-gray-600/50 rounded-lg text-gray-100 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
+          >
+            <option v-for="semester in semesterOptions" :key="semester" :value="semester">
+              {{ formatSemester(semester) }}
+            </option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -130,6 +143,8 @@
           <p v-if="team.description" class="text-gray-400 text-sm mb-3">
             {{ team.description }}
           </p>
+
+          <p class="text-sm text-blue-300 mb-3">{{ formatSemester(team.semester) }}</p>
           
           <div class="flex items-center text-sm text-gray-500 mb-3">
             <UserGroupIcon class="h-4 w-4 mr-2" />
@@ -242,6 +257,8 @@ import { usePermissions } from '@/composables/usePermissions'
 import BaseButton from '@/components/common/BaseButton.vue'
 import type { Team } from '@/types/api'
 import { UserGroupIcon } from '@heroicons/vue/24/outline'
+import apiService from '@/services/api'
+import { buildSemesterOptions, formatSemester, inferCurrentSemester } from '@/utils/semester'
 
 const router = useRouter()
 const teamStore = useTeamStore()
@@ -250,12 +267,16 @@ const { can } = usePermissions()
 const loading = ref(false)
 const currentPage = ref(1)
 const itemsPerPage = ref(9)
+const usedSemesters = ref<string[]>([])
 
 const filters = reactive({
   search: '',
   type: '',
-  subtype: ''
+  subtype: '',
+  semester: inferCurrentSemester()
 })
+
+const semesterOptions = computed(() => buildSemesterOptions(usedSemesters.value))
 
 const canCreate = computed(() => can('create', 'Team'))
 const canUpdate = computed(() => can('update', 'Team'))
@@ -287,6 +308,8 @@ const endIndex = computed(() => {
 })
 
 onMounted(async () => {
+  const semesters = await apiService.getSemesters()
+  usedSemesters.value = semesters.teams
   await loadTeams()
 })
 
@@ -304,7 +327,10 @@ const loadTeams = async () => {
     loading.value = true
     await teamStore.fetchTeams({
       page: currentPage.value,
-      limit: itemsPerPage.value
+      limit: itemsPerPage.value,
+      query: filters.search || undefined,
+      type: filters.type as any || undefined,
+      semester: filters.semester
     })
   } catch (error) {
     console.error('Failed to load teams:', error)
@@ -321,6 +347,7 @@ const clearFilters = () => {
   filters.search = ''
   filters.type = ''
   filters.subtype = ''
+  filters.semester = inferCurrentSemester()
   currentPage.value = 1
 }
 
