@@ -1,8 +1,8 @@
 export interface TemplateData {
   userName: string;
-  eventTitle: string;
-  eventDate: string;
-  eventTime: string;
+  eventTitle?: string;
+  eventDate?: string;
+  eventTime?: string;
   eventDescription?: string;
   eventLocation?: string;
   orgName?: string;
@@ -71,6 +71,19 @@ function eventDetailsBlock(data: TemplateData): string {
   details += `
     </dl>`;
   return details;
+}
+
+function inventoryDetailsBlock(data: TemplateData): string {
+  return `
+    <dl class="event-details">
+      <dt>Item</dt>
+      <dd>${data.itemName}</dd>
+      <dt>Barcode</dt>
+      <dd>${data.itemBarcode}</dd>
+      <dt>${data.transactionLabel}</dt>
+      <dd>${data.transactionDate}</dd>
+      ${data.binName ? `<dt>Return location</dt><dd>${data.binName}</dd>` : ''}
+    </dl>`;
 }
 
 export const emailTemplates = {
@@ -150,6 +163,32 @@ export const emailTemplates = {
         <p><span class="badge badge-confirmed">Checked In</span></p>
         ${data.seriesProgress ? `<p><strong>Series progress:</strong> ${data.seriesProgress}</p>` : ''}
         ${data.eventDescription ? `<p>${data.eventDescription}</p>` : ''}
+      `, data.orgName),
+    };
+  },
+
+  itemCheckedOut(data: TemplateData): { subject: string; html: string } {
+    return {
+      subject: `${data.itemName} checked out to you`,
+      html: baseLayout(`
+        <h2>Item checked out</h2>
+        <p>Hi ${data.userName}, this confirms that the following item was checked out to you.</p>
+        ${inventoryDetailsBlock(data)}
+        <p><span class="badge badge-confirmed">Checked Out</span></p>
+        <p>Please return the item when you are finished with it.</p>
+      `, data.orgName),
+    };
+  },
+
+  itemCheckedIn(data: TemplateData): { subject: string; html: string } {
+    return {
+      subject: `${data.itemName} return confirmed`,
+      html: baseLayout(`
+        <h2>Item returned</h2>
+        <p>Hi ${data.userName}, this confirms that the following item has been checked in.</p>
+        ${inventoryDetailsBlock(data)}
+        <p><span class="badge badge-confirmed">Returned</span></p>
+        <p>Thank you for returning it!</p>
       `, data.orgName),
     };
   },

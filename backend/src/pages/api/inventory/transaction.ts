@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '@/models/prismaClient'
 import { AuthenticatedRequest, withAuth } from '@/middleware/authMiddleware'
 import { withCORS } from '@/middleware/corsMiddleware'
+import { sendItemCheckedInEmail, sendItemCheckedOutEmail } from '@/services/inventoryEmailService'
 
 const schema = z.object({
   action: z.enum(['checkout', 'checkin']),
@@ -18,7 +19,10 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   if (!parsed.success) return res.status(400).json({ error: 'Invalid transaction' })
   const { action, barcode, memberCode, binId } = parsed.data
 
-  const item = await prisma.inventoryItem.findUnique({ where: { barcode } })
+  const item = await prisma.inventoryItem.findUnique({
+    where: { barcode },
+    include: { checkedOutTo: true }
+  })
   if (!item) return res.status(404).json({ error: 'Item barcode not found' })
 
   if (action === 'checkout') {
@@ -43,18 +47,25 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       }
     })
     if (!user) return res.status(404).json({ error: 'Member QR code not found' })
+    const checkedOutAt = new Date()
     await prisma.$transaction([
       prisma.inventoryItem.update({ where: { id: item.id }, data: { checkedOutToId: user.id, binId: null } }),
-      prisma.itemLoan.create({ data: { itemId: item.id, userId: user.id } })
+      prisma.itemLoan.create({ data: { itemId: item.id, userId: user.id, checkedOutAt } })
     ])
+    await sendItemCheckedOutEmail(user, item, checkedOutAt)
     return res.status(200).json({ message: `${item.name} checked out to ${user.displayName || `${user.firstName} ${user.lastName}`}` })
   }
 
   if (!item.checkedOutToId) return res.status(409).json({ error: 'Item is not checked out' })
+  const checkedInAt = new Date()
+  const returnBin = binId ? await prisma.inventoryBin.findUnique({ where: { id: binId } }) : null
   await prisma.$transaction([
     prisma.inventoryItem.update({ where: { id: item.id }, data: { checkedOutToId: null, binId: binId !== undefined ? binId : item.binId } }),
-    prisma.itemLoan.updateMany({ where: { itemId: item.id, checkedInAt: null }, data: { checkedInAt: new Date(), returnBinId: binId } })
+    prisma.itemLoan.updateMany({ where: { itemId: item.id, checkedInAt: null }, data: { checkedInAt, returnBinId: binId } })
   ])
+  if (item.checkedOutTo) {
+    await sendItemCheckedInEmail(item.checkedOutTo, item, checkedInAt, returnBin?.name)
+  }
   return res.status(200).json({ message: `${item.name} checked in` })
 }
 

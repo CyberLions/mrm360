@@ -8,6 +8,14 @@ const baseData: TemplateData = {
   eventTime: '2:00 PM - 4:00 PM',
 };
 
+const inventoryData: TemplateData = {
+  userName: 'Alice',
+  itemName: 'Fluke Multimeter',
+  itemBarcode: 'INV-0042',
+  transactionLabel: 'Checked out',
+  transactionDate: 'Wednesday, August 19, 2026 at 2:30 PM',
+};
+
 describe('emailTemplates', () => {
   describe('rsvpConfirmed', () => {
     it('returns correct subject', () => {
@@ -139,6 +147,30 @@ describe('emailTemplates', () => {
     });
   });
 
+  describe('inventory notifications', () => {
+    it('renders an item checkout receipt', () => {
+      const { subject, html } = emailTemplates.itemCheckedOut(inventoryData);
+
+      expect(subject).toBe('Fluke Multimeter checked out to you');
+      expect(html).toContain('Alice');
+      expect(html).toContain('Fluke Multimeter');
+      expect(html).toContain('INV-0042');
+      expect(html).toContain('Checked Out');
+    });
+
+    it('renders an item return receipt with its return location', () => {
+      const { subject, html } = emailTemplates.itemCheckedIn({
+        ...inventoryData,
+        transactionLabel: 'Returned',
+        binName: 'Electronics Cabinet',
+      });
+
+      expect(subject).toBe('Fluke Multimeter return confirmed');
+      expect(html).toContain('Returned');
+      expect(html).toContain('Electronics Cabinet');
+    });
+  });
+
   describe('postEventThankYou', () => {
     it('returns correct subject', () => {
       const { subject } = emailTemplates.postEventThankYou(baseData);
@@ -160,14 +192,17 @@ describe('emailTemplates', () => {
     it('produce valid HTML documents', () => {
       const templateNames = Object.keys(emailTemplates) as Array<keyof typeof emailTemplates>;
       for (const name of templateNames) {
-        const { html } = emailTemplates[name](baseData);
+        const data = name === 'itemCheckedOut' || name === 'itemCheckedIn' ? inventoryData : baseData;
+        const { html } = emailTemplates[name](data);
         expect(html).toContain('<!DOCTYPE html>');
         expect(html).toContain('</html>');
       }
     });
 
     it('all include event details block', () => {
-      const templateNames = Object.keys(emailTemplates) as Array<keyof typeof emailTemplates>;
+      const templateNames = Object.keys(emailTemplates).filter(
+        name => name !== 'itemCheckedOut' && name !== 'itemCheckedIn'
+      ) as Array<keyof typeof emailTemplates>;
       for (const name of templateNames) {
         const { html } = emailTemplates[name](baseData);
         expect(html).toContain('event-details');
