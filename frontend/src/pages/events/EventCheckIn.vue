@@ -17,17 +17,7 @@
           {{ event.title }} - {{ formatDate(event.startTime) }} at {{ formatTime(event.startTime) }}
         </p>
       </div>
-      <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none space-x-3">
-        <router-link
-          :to="`/events/${eventId}`"
-          class="inline-flex items-center px-4 py-2 border border-gray-600 rounded-lg text-sm font-medium text-gray-300 bg-gray-800 hover:bg-gray-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900"
-        >
-          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
-          </svg>
-          Back to Event
-        </router-link>
-        
+      <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
         <BaseButton
           @click="refreshAttendees"
           variant="secondary"
@@ -45,7 +35,8 @@
         <div class="bg-gray-800 shadow rounded-lg border border-gray-700">
           <div class="px-4 py-5 sm:p-6">
             <h3 class="text-lg leading-6 font-medium text-gray-100 mb-4">QR Code Scanner</h3>
-            <div class="space-y-4">
+            <CameraCodeScanner format="qr" :scan-cooldown-ms="2000" @scanned="handleQRCodeDetected" />
+            <div v-if="false" class="space-y-4">
               <div class="flex space-x-3">
                 <BaseButton
                   @click="startCamera"
@@ -275,26 +266,19 @@
                   <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-900 text-green-200">
                     Checked In
                   </span>
-                  <router-link
+                  <IconButton
                     :to="`/users/${checkIn.user.id}`"
-                    class="text-blue-400 hover:text-blue-300 text-sm font-medium"
-                  >
-                    View User
-                  </router-link>
-                  <button
+                    :icon="EyeIcon"
+                    label="View member"
+                    variant="primary"
+                  />
+                  <IconButton
                     @click="deleteCheckIn(checkIn.user.id)"
                     :disabled="deletingCheckIn === checkIn.user.id"
-                    class="text-red-400 hover:text-red-300 text-sm font-medium disabled:opacity-50"
-                    title="Remove check-in"
-                  >
-                    <svg v-if="deletingCheckIn === checkIn.user.id" class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                    </svg>
-                  </button>
+                    :icon="deletingCheckIn === checkIn.user.id ? ArrowPathIcon : TrashIcon"
+                    label="Remove check-in"
+                    variant="danger"
+                  />
                 </div>
               </div>
             </div>
@@ -335,12 +319,14 @@ import { useRoute } from 'vue-router'
 import { useEventStore } from '@/stores/eventStore'
 import { usePermissions } from '@/composables/usePermissions'
 import BaseButton from '@/components/common/BaseButton.vue'
+import IconButton from '@/components/common/IconButton.vue'
+import CameraCodeScanner from '@/components/inventory/CameraCodeScanner.vue'
 import type { Event, User } from '@/types/api'
 // @ts-ignore
 import { BrowserQRCodeReader } from '@zxing/browser'
 import { useToast } from 'vue-toastification'
 import { apiService } from '@/services/api'
-import { UserGroupIcon } from '@heroicons/vue/24/outline'
+import { ArrowPathIcon, EyeIcon, TrashIcon, UserGroupIcon } from '@heroicons/vue/24/outline'
 
 const route = useRoute()
 const eventStore = useEventStore()

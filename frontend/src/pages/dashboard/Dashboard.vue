@@ -40,12 +40,12 @@
         </div>
         <div class="bg-gray-700 px-5 py-3">
           <div class="text-sm">
-            <router-link
+            <IconButton
               :to="stat.href"
-              class="font-medium text-blue-400 hover:text-blue-300"
-            >
-              View all
-            </router-link>
+              :icon="ArrowRightIcon"
+              :label="`View all ${stat.name}`"
+              variant="primary"
+            />
           </div>
         </div>
       </div>
@@ -137,12 +137,12 @@
           </div>
         </div>
         <div class="bg-gray-700 px-4 py-3 border-t border-gray-600 mt-auto">
-          <router-link
+          <IconButton
             to="/profile"
-            class="block w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200 text-sm text-center"
-          >
-            View Attendance QR
-          </router-link>
+            :icon="QrCodeIcon"
+            label="View Profile QR"
+            variant="primary"
+          />
         </div>
       </div>
 
@@ -174,12 +174,12 @@
                   {{ formatDate(event.startTime) }}
                 </p>
               </div>
-              <router-link
+              <IconButton
                 :to="`/events/${event.id}`"
-                class="ml-4 flex-shrink-0 text-blue-400 hover:text-blue-300 text-sm font-medium"
-              >
-                View
-              </router-link>
+                :icon="EyeIcon"
+                label="View event"
+                variant="primary"
+              />
             </div>
           </div>
           <div v-else class="text-center py-4">
@@ -191,12 +191,12 @@
           </div>
         </div>
         <div class="bg-gray-700 px-4 py-3 border-t border-gray-600 mt-auto">
-          <router-link
+          <IconButton
             to="/events"
-            class="text-sm font-medium text-blue-400 hover:text-blue-300"
-          >
-            View all events
-          </router-link>
+            :icon="ArrowRightIcon"
+            label="View all events"
+            variant="primary"
+          />
         </div>
       </div>
 
@@ -222,12 +222,12 @@
                     {{ team.type }} • {{ team.userTeams?.length || 0 }} members
                   </p>
                 </div>
-                <router-link
+                <IconButton
                   :to="`/teams/${team.id}`"
-                  class="ml-4 flex-shrink-0 text-blue-400 hover:text-blue-300 text-sm font-medium"
-                >
-                  View
-                </router-link>
+                  :icon="EyeIcon"
+                  label="View team"
+                  variant="primary"
+                />
               </div>
             </div>
             <div v-else class="text-center py-4">
@@ -239,12 +239,12 @@
             </div>
           </div>
           <div class="bg-gray-700 px-4 py-3 border-t border-gray-600 mt-auto">
-            <router-link
+            <IconButton
               to="/teams"
-              class="text-sm font-medium text-blue-400 hover:text-blue-300"
-            >
-              View all teams
-            </router-link>
+              :icon="ArrowRightIcon"
+              label="View all teams"
+              variant="primary"
+            />
           </div>
         </div>
 
@@ -277,12 +277,12 @@
                     </p>
                   </div>
                 </div>
-                <router-link
+                <IconButton
                   :to="`/users/${user.id}`"
-                  class="ml-4 flex-shrink-0 text-blue-400 hover:text-blue-300 text-sm font-medium"
-                >
-                  View
-                </router-link>
+                  :icon="EyeIcon"
+                  label="View member"
+                  variant="primary"
+                />
               </div>
             </div>
             <div v-else class="text-center py-4">
@@ -294,12 +294,12 @@
             </div>
           </div>
           <div class="bg-gray-700 px-4 py-3 border-t border-gray-600 mt-auto">
-            <router-link
+            <IconButton
               to="/users"
-              class="text-sm font-medium text-blue-400 hover:text-blue-300"
-            >
-              View all members
-            </router-link>
+              :icon="ArrowRightIcon"
+              label="View all members"
+              variant="primary"
+            />
           </div>
         </div>
       </template>
@@ -326,12 +326,12 @@
                     {{ team.type }}
                   </p>
                 </div>
-                <router-link
+                <IconButton
                   :to="`/teams/${team.id}`"
-                  class="ml-4 flex-shrink-0 text-blue-400 hover:text-blue-300 text-sm font-medium"
-                >
-                  View
-                </router-link>
+                  :icon="EyeIcon"
+                  label="View team"
+                  variant="primary"
+                />
               </div>
             </div>
             <div v-else class="text-center py-4">
@@ -343,12 +343,12 @@
             </div>
           </div>
           <div class="bg-gray-700 px-4 py-3 border-t border-gray-600 mt-auto">
-            <router-link
+            <IconButton
               to="/teams"
-              class="text-sm font-medium text-blue-400 hover:text-blue-300"
-            >
-              View all teams
-            </router-link>
+              :icon="ArrowRightIcon"
+              label="View all teams"
+              variant="primary"
+            />
           </div>
         </div>
 
@@ -373,12 +373,12 @@
                     {{ formatDate(event.startTime) }}
                   </p>
                 </div>
-                <router-link
+                <IconButton
                   :to="`/events/${event.id}`"
-                  class="ml-4 flex-shrink-0 text-blue-400 hover:text-blue-300 text-sm font-medium"
-                >
-                  View
-                </router-link>
+                  :icon="EyeIcon"
+                  label="View event"
+                  variant="primary"
+                />
               </div>
             </div>
             <div v-else class="text-center py-4">
@@ -390,12 +390,12 @@
             </div>
           </div>
           <div class="bg-gray-700 px-4 py-3 border-t border-gray-600 mt-auto">
-            <router-link
+            <IconButton
               to="/events"
-              class="text-sm font-medium text-blue-400 hover:text-blue-300"
-            >
-              View all events
-            </router-link>
+              :icon="ArrowRightIcon"
+              label="View all events"
+              variant="primary"
+            />
           </div>
         </div>
       </template>
@@ -410,6 +410,7 @@ import { useUserStore } from '@/stores/userStore'
 import { useEventStore } from '@/stores/eventStore'
 import { useTeamStore } from '@/stores/teamStore'
 import apiService from '@/services/api'
+import IconButton from '@/components/common/IconButton.vue'
 
 import { initiateOAuthLogin } from '@/utils/oauth'
 import {
@@ -417,7 +418,10 @@ import {
   UserGroupIcon,
   CalendarIcon,
   CurrencyDollarIcon,
-  UserIcon
+  UserIcon,
+  ArrowRightIcon,
+  EyeIcon,
+  QrCodeIcon
 } from '@heroicons/vue/24/outline'
 import type { User, DashboardStats } from '@/types/api'
 

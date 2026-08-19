@@ -39,6 +39,31 @@ export interface UserPaymentStatus {
   nextExpiration?: string
 }
 
+export interface InventoryBin { id: string; name: string; room?: string; code?: string; description?: string; _count?: { items: number } }
+export interface InventoryItem {
+  id: string
+  barcode: string
+  name: string
+  binId?: string
+  bin?: InventoryBin
+  checkedOutToId?: string
+  checkedOutTo?: { id: string; email?: string; firstName: string; lastName: string; displayName?: string }
+  loans?: Array<{ checkedOutAt: string; checkedInAt?: string }>
+  createdAt?: string
+  updatedAt?: string
+}
+export interface ItemLoan {
+  id: string
+  itemId: string
+  userId: string
+  checkedOutAt: string
+  checkedInAt?: string
+  returnBinId?: string
+  item: InventoryItem
+  returnBin?: InventoryBin
+  user?: { id: string; firstName: string; lastName: string; displayName?: string }
+}
+
 // User types
 export interface User {
   id: string

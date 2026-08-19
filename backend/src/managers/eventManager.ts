@@ -543,9 +543,25 @@ export class EventManager {
     try {
       logger.info('Processing attendance check-in', { qrCode: data.qrCode, eventId: data.eventId });
       
-      // Find user by QR code
+      let memberCode = data.qrCode.trim();
+      let memberEmail: string | undefined;
+      try {
+        const payload = JSON.parse(memberCode);
+        if (typeof payload?.userId === 'string') memberCode = payload.userId;
+        if (typeof payload?.email === 'string') memberEmail = payload.email;
+      } catch {
+        // Current profile codes are plain strings; legacy codes may be JSON.
+      }
+
+      // Accept current QR tokens and legacy profile QR payloads.
       const user = await this.prisma.user.findFirst({
-        where: { qrCode: data.qrCode },
+        where: {
+          OR: [
+            { qrCode: data.qrCode },
+            { id: memberCode },
+            ...(memberEmail ? [{ email: memberEmail }] : []),
+          ],
+        },
       });
 
       if (!user) {

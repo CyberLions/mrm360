@@ -22,6 +22,7 @@ import type {
   WorkshopSeriesCreate,
   WorkshopSeriesUpdate,
   BadgeClass
+  , InventoryItem, InventoryBin, ItemLoan
 } from '@/types/api'
 
 class ApiService {
@@ -305,6 +306,54 @@ class ApiService {
   async healthCheck(): Promise<{ status: string }> {
     const response = await this.api.get('/health')
     return response.data
+  }
+
+  async getInventory(): Promise<{ items: InventoryItem[]; bins: InventoryBin[]; canManage: boolean }> {
+    return (await this.api.get('/inventory')).data
+  }
+
+  async createInventoryItems(items: Array<{ barcode: string; name: string; binId?: string | null; binName?: string; room?: string }>): Promise<{ items: InventoryItem[] }> {
+    return (await this.api.post('/inventory', { items })).data
+  }
+
+  async createInventoryBin(data: { name: string; room?: string | null; code?: string | null; description?: string | null }): Promise<InventoryBin> {
+    return (await this.api.post('/inventory/bins', data)).data.bin
+  }
+
+  async getInventoryBins(): Promise<InventoryBin[]> {
+    return (await this.api.get('/inventory/bins')).data.bins
+  }
+
+  async updateInventoryBin(id: string, data: { name: string; room?: string | null; code?: string | null; description?: string | null }): Promise<InventoryBin> {
+    return (await this.api.put(`/inventory/bins/${id}`, data)).data.bin
+  }
+
+  async deleteInventoryBin(id: string): Promise<void> {
+    await this.api.delete(`/inventory/bins/${id}`)
+  }
+
+  async getInventoryItem(id: string): Promise<InventoryItem & { loans: ItemLoan[] }> {
+    return (await this.api.get(`/inventory/items/${id}`)).data.item
+  }
+
+  async updateInventoryItem(id: string, data: { binId?: string | null; name?: string }): Promise<InventoryItem> {
+    return (await this.api.put(`/inventory/items/${id}`, data)).data.item
+  }
+
+  async moveInventoryItem(id: string, binId: string | null): Promise<InventoryItem> {
+    return this.updateInventoryItem(id, { binId })
+  }
+
+  async inventoryTransaction(data: { action: 'checkout' | 'checkin'; barcode: string; memberCode?: string; binId?: string | null }): Promise<{ message: string }> {
+    return (await this.api.post('/inventory/transaction', data)).data
+  }
+
+  async getInventoryHistory(userId?: string): Promise<{ loans: ItemLoan[] }> {
+    return (await this.api.get('/inventory/history', { params: userId ? { userId } : undefined })).data
+  }
+
+  async generateInventoryBarcode(): Promise<string> {
+    return (await this.api.post('/inventory/generate-barcode')).data.barcode
   }
 
   // Wiretap endpoints

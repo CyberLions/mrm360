@@ -39,7 +39,7 @@
           <!-- QR Code Card -->
           <div class="bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-700">
             <h3 class="text-lg font-semibold text-gray-100 mb-4">
-              Attendance QR Code
+              Profile QR Code
             </h3>
             <div class="text-center">
               <div class="bg-white p-4 rounded-lg border-2 border-gray-600 inline-block">
@@ -72,8 +72,6 @@
 
         <!-- Right Column: Settings -->
         <div class="lg:col-span-2 space-y-6">
-          <PaymentHistoryList v-if="user?.id" :user-id="user.id" />
-
           <!-- Discord Integration -->
           <div class="bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-700">
             <h3 class="text-lg font-semibold text-gray-100 mb-4">
@@ -268,6 +266,9 @@
             </div>
           </div>
 
+          <PaymentHistoryList v-if="user?.id" :user-id="user.id" />
+          <ItemCheckoutHistory v-if="user?.id" :user-id="user.id" />
+
           <!-- VPN Access -->
           <div class="bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-700">
             <h3 class="text-lg font-semibold text-gray-100 mb-4">
@@ -384,6 +385,7 @@ import QRCodeVue3 from 'qrcode-vue3'
 import type { User } from '@/types/api'
 import { useToast } from 'vue-toastification'
 import PaymentHistoryList from '@/components/payments/PaymentHistoryList.vue'
+import ItemCheckoutHistory from '@/components/inventory/ItemCheckoutHistory.vue'
 
 const authStore = useAuthStore()
 const toast = useToast()

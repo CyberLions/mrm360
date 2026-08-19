@@ -228,49 +228,30 @@
               </td>
               <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                 <div class="flex space-x-2">
-                  <router-link
-                    :to="`/users/${user.id}`"
-                    class="text-blue-400 hover:text-blue-300"
-                  >
-                    View
-                  </router-link>
-                   <button
+                  <IconButton :icon="EyeIcon" label="View member details" :to="`/users/${user.id}`" variant="primary" />
+                   <IconButton
                      v-if="!user.isPaid"
+                     :icon="isTogglingPaidStatus === user.id ? ArrowPathIcon : BanknotesIcon"
+                     label="Record payment"
+                     variant="success"
                      @click="openPaymentModal(user)"
                      :disabled="isTogglingPaidStatus === user.id"
-                     class="text-green-400 hover:text-green-300 transition-colors duration-200"
-                   >
-                     <span v-if="isTogglingPaidStatus === user.id" class="flex items-center">
-                       <svg class="animate-spin -ml-1 mr-1 h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                       </svg>
-                       Pay
-                     </span>
-                     <span v-else>Pay</span>
-                   </button>
-                   <button
+                   />
+                   <IconButton
                      v-else
+                     :icon="isTogglingPaidStatus === user.id ? ArrowPathIcon : ArrowUturnLeftIcon"
+                     label="Mark unpaid"
+                     variant="warning"
                      @click="markUserUnpaid(user)"
                      :disabled="isTogglingPaidStatus === user.id"
-                     class="text-yellow-400 hover:text-yellow-300 transition-colors duration-200"
-                   >
-                     <span v-if="isTogglingPaidStatus === user.id" class="flex items-center">
-                       <svg class="animate-spin -ml-1 mr-1 h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                       </svg>
-                       Unpay
-                     </span>
-                     <span v-else>Unpay</span>
-                   </button>
-                   <button
+                   />
+                   <IconButton
                      v-if="can('delete', 'User')"
+                     :icon="TrashIcon"
+                     label="Delete member"
+                     variant="danger"
                      @click="deleteUser(user)"
-                     class="text-red-400 hover:text-red-300"
-                   >
-                     Delete
-                   </button>
+                   />
                 </div>
               </td>
             </tr>
@@ -368,7 +349,8 @@ import { usePermissions } from '@/composables/usePermissions'
 import type { User, UserFilters } from '@/types/api'
 import BaseButton from '@/components/common/BaseButton.vue'
 import PaymentModal from '@/components/payments/PaymentModal.vue'
-import { UserGroupIcon } from '@heroicons/vue/24/outline'
+import { ArrowPathIcon, ArrowUturnLeftIcon, BanknotesIcon, EyeIcon, TrashIcon, UserGroupIcon } from '@heroicons/vue/24/outline'
+import IconButton from '@/components/common/IconButton.vue'
 
 const userStore = useUserStore()
 const teamStore = useTeamStore()

@@ -268,12 +268,12 @@
                        rsvp.status === 'DECLINED' ? 'Not Attending' : 
                        rsvp.status === 'WAITLIST' ? 'On Waitlist' : rsvp.status }}
                   </span>
-                  <router-link
+                  <IconButton
                     :to="`/users/${rsvp.user.id}`"
-                    class="text-blue-400 hover:text-blue-300 text-sm font-medium"
-                  >
-                    View User
-                  </router-link>
+                    :icon="EyeIcon"
+                    label="View member"
+                    variant="primary"
+                  />
                 </div>
               </div>
             </div>
@@ -310,12 +310,12 @@
                   <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-900 text-green-200">
                     Checked In
                   </span>
-                  <router-link
+                  <IconButton
                     :to="`/users/${checkIn.user.id}`"
-                    class="text-blue-400 hover:text-blue-300 text-sm font-medium"
-                  >
-                    View User
-                  </router-link>
+                    :icon="EyeIcon"
+                    label="View member"
+                    variant="primary"
+                  />
                 </div>
               </div>
             </div>
@@ -503,12 +503,12 @@
                   {{ event.linkedTeam.description }}
                 </p>
               </div>
-              <router-link
+              <IconButton
                 :to="`/teams/${event.linkedTeam.id}`"
-                class="text-blue-400 hover:text-blue-300 text-sm font-medium"
-              >
-                View Team
-              </router-link>
+                :icon="EyeIcon"
+                label="View linked team"
+                variant="primary"
+              />
             </div>
           </div>
         </div>
@@ -735,21 +735,18 @@
               <div class="flex justify-between items-center mb-2">
                 <h5 class="font-medium text-gray-100">Team {{ team.teamNumber }}</h5>
                 <div class="flex space-x-2">
-                  <BaseButton
+                  <IconButton
                     @click="openTeamManagement(team)"
-                    variant="outline"
-                    size="sm"
-                  >
-                    Manage
-                  </BaseButton>
-                  <BaseButton
+                    :icon="PencilSquareIcon"
+                    label="Manage team"
+                  />
+                  <IconButton
                     v-if="can('delete', 'Team')"
                     @click="deleteTeam(team.id)"
+                    :icon="TrashIcon"
+                    label="Delete team"
                     variant="danger"
-                    size="sm"
-                  >
-                    Delete
-                  </BaseButton>
+                  />
                 </div>
               </div>
               <div class="text-sm text-gray-400">
@@ -824,13 +821,12 @@
                 </span>
                 <p class="text-sm text-gray-400">{{ member.email }}</p>
               </div>
-              <BaseButton
+              <IconButton
                 @click="removeTeamMember(selectedTeam.id, member.email)"
+                :icon="UserMinusIcon"
+                label="Remove team member"
                 variant="danger"
-                size="sm"
-              >
-                Remove
-              </BaseButton>
+              />
             </div>
           </div>
         </div>
@@ -877,14 +873,13 @@
               </div>
             </div>
             
-            <BaseButton
+            <IconButton
               @click="addTeamMember(selectedTeam.id, newMemberEmail)"
+              :icon="UserPlusIcon"
+              label="Add team member"
               variant="primary"
               :disabled="!newMemberEmail"
-              class="w-full"
-            >
-              Add
-            </BaseButton>
+            />
           </div>
           <p v-if="selectedTeam.wiretapTeamId" class="text-xs text-blue-400">
             ✓ The user will be added to both MRM and Wiretap teams
@@ -930,10 +925,12 @@ import { useEventStore } from '@/stores/eventStore'
 import { useAuthStore } from '@/stores/authStore'
 import { usePermissions } from '@/composables/usePermissions'
 import BaseButton from '@/components/common/BaseButton.vue'
+import IconButton from '@/components/common/IconButton.vue'
 import BaseModal from '@/components/common/BaseModal.vue'
 import TeamSwitcher from '@/components/events/TeamSwitcher.vue'
 import type { Event } from '@/types/api'
 import QRCodeVue3 from 'qrcode-vue3'
+import { EyeIcon, PencilSquareIcon, TrashIcon, UserMinusIcon, UserPlusIcon } from '@heroicons/vue/24/outline'
 import { useToast } from 'vue-toastification'
 import { apiService } from '@/services/api'
 import { UserGroupIcon } from '@heroicons/vue/24/outline'

@@ -122,6 +122,7 @@
         </div>
 
         <PaymentHistoryList :user-id="user.id" />
+        <ItemCheckoutHistory :user-id="user.id" />
 
         <!-- Teams Card -->
         <div class="bg-gray-800 shadow rounded-lg border border-gray-700">
@@ -142,12 +143,12 @@
                     {{ team.description }}
                   </p>
                 </div>
-                <router-link
+                <IconButton
                   :to="`/teams/${team.id}`"
-                  class="text-blue-400 hover:text-blue-300 text-sm font-medium"
-                >
-                  View Team
-                </router-link>
+                  :icon="EyeIcon"
+                  label="View team"
+                  variant="primary"
+                />
               </div>
             </div>
             <div v-else class="text-center py-4">
@@ -178,12 +179,12 @@
                     {{ formatDate(event.startTime) }} - {{ formatDate(event.endTime) }}
                   </p>
                 </div>
-                <router-link
+                <IconButton
                   :to="`/events/${event.id}`"
-                  class="text-blue-400 hover:text-blue-300 text-sm font-medium"
-                >
-                  View Event
-                </router-link>
+                  :icon="EyeIcon"
+                  label="View event"
+                  variant="primary"
+                />
               </div>
             </div>
             <div v-else class="text-center py-4">
@@ -203,13 +204,13 @@
               <h3 class="text-lg leading-6 font-medium text-gray-100">
                 Badges
               </h3>
-              <button
+              <IconButton
                 v-if="can('update', 'User')"
                 @click="showBadgeInvite = !showBadgeInvite"
-                class="text-sm text-blue-400 hover:text-blue-300"
-              >
-                {{ showBadgeInvite ? 'Cancel' : 'Send Badge Invite' }}
-              </button>
+                :icon="showBadgeInvite ? XMarkIcon : EnvelopeIcon"
+                :label="showBadgeInvite ? 'Cancel badge invite' : 'Send badge invite'"
+                variant="primary"
+              />
             </div>
 
             <!-- Badge Invite Form -->
@@ -238,17 +239,13 @@
                   />
                   <div class="text-xs text-gray-400">{{ selectedBadgeClass.description }}</div>
                 </div>
-                <button
+                <IconButton
                   @click="sendBadgeInvite"
                   :disabled="!selectedBadgeClassId || sendingInvite"
-                  class="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm flex items-center justify-center"
-                >
-                  <svg v-if="sendingInvite" class="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  {{ sendingInvite ? 'Sending Invite...' : 'Send Badge Invite' }}
-                </button>
+                  :icon="sendingInvite ? ArrowPathIcon : EnvelopeIcon"
+                  label="Send badge invite"
+                  variant="primary"
+                />
               </template>
             </div>
 
@@ -341,7 +338,7 @@
         <div class="bg-gray-800 shadow rounded-lg border border-gray-700">
           <div class="px-4 py-5 sm:p-6">
             <h3 class="text-lg leading-6 font-medium text-gray-100 mb-4">
-              Attendance QR Code
+              Profile QR Code
             </h3>
             <div class="text-center">
               <div class="bg-white p-4 rounded-lg border-2 border-gray-600 inline-block">
@@ -363,9 +360,9 @@
               <div class="flex space-x-2">
                 <button
                   @click="downloadQRCode"
-                  class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200 text-sm"
+                  class="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
                 >
-                  Download
+                  Download Profile QR Code
                 </button>
               </div>
             </div>
@@ -415,13 +412,10 @@
             <button
               @click="startVPNEnrollment"
               :disabled="isSendingVPN"
-              class="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center"
+              class="flex w-full items-center justify-center rounded-lg bg-purple-600 px-4 py-2 font-medium text-white transition-colors hover:bg-purple-700 disabled:bg-purple-800"
             >
-              <svg v-if="isSendingVPN" class="animate-spin h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              <span>{{ isSendingVPN ? 'Generating...' : 'Start VPN Enrollment' }}</span>
+              <ArrowPathIcon v-if="isSendingVPN" class="mr-2 h-5 w-5 animate-spin" />
+              {{ isSendingVPN ? 'Generating VPN Enrollment…' : 'Start VPN Enrollment' }}
             </button>
           </div>
         </div>
@@ -451,11 +445,7 @@
               Share this with <strong class="text-gray-200">{{ user?.firstName }}</strong>.
             </p>
           </div>
-          <button @click="showVPNModal = false" class="text-gray-400 hover:text-gray-200 ml-4">
-            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <IconButton :icon="XMarkIcon" label="Close VPN enrollment" @click="showVPNModal = false" />
         </div>
 
         <div class="bg-blue-900/40 border border-blue-700 rounded-lg p-4 mb-5">
@@ -470,15 +460,11 @@
             <code class="flex-1 bg-gray-900 border border-gray-600 rounded-lg px-4 py-3 text-sm font-mono text-green-400 break-all">
               {{ vpnEnrollment?.enrollmentToken }}
             </code>
-            <button
+            <IconButton
               @click="copyToken(vpnEnrollment?.enrollmentToken || '')"
-              class="shrink-0 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-lg px-3 py-3"
-              title="Copy token"
-            >
-              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-            </button>
+              :icon="ClipboardIcon"
+              label="Copy enrollment token"
+            />
           </div>
         </div>
 
@@ -486,9 +472,9 @@
           :href="vpnEnrollment?.enrollmentUrl"
           target="_blank"
           rel="noopener noreferrer"
-          class="block w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg text-center transition-colors duration-200"
+          class="block w-full rounded-lg bg-purple-600 px-6 py-3 text-center font-semibold text-white transition-colors hover:bg-purple-700"
         >
-          Open Enrollment Portal
+          Open VPN Enrollment Portal
         </a>
 
         <p class="text-xs text-gray-500 text-center mt-4">This token is single-use. Share it promptly.</p>
@@ -504,12 +490,14 @@ import { useUserStore } from '@/stores/userStore'
 import { useGroupStore } from '@/stores/groupStore'
 import { useAuthStore } from '@/stores/authStore'
 import { usePermissions } from '@/composables/usePermissions'
-import { UserGroupIcon, CalendarIcon } from '@heroicons/vue/24/outline'
+import { ArrowPathIcon, CalendarIcon, ClipboardIcon, EnvelopeIcon, EyeIcon, UserGroupIcon, XMarkIcon } from '@heroicons/vue/24/outline'
 import QRCodeVue3 from 'qrcode-vue3'
 import type { User, BadgeClass } from '@/types/api'
 import { useToast } from 'vue-toastification'
 import apiService from '@/services/api'
 import PaymentHistoryList from '@/components/payments/PaymentHistoryList.vue'
+import ItemCheckoutHistory from '@/components/inventory/ItemCheckoutHistory.vue'
+import IconButton from '@/components/common/IconButton.vue'
 
 const route = useRoute()
 const router = useRouter()

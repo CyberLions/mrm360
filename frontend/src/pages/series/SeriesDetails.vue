@@ -247,18 +247,14 @@
 
                 <!-- Badge invite button -->
                 <td v-if="canEdit" class="px-4 py-4 text-center whitespace-nowrap">
-                  <button
+                  <IconButton
                     v-if="member.completed && !issuedUsers.has(member.userId)"
                     @click="sendBadgeInvite(member)"
                     :disabled="issuingFor === member.userId"
-                    class="inline-flex items-center px-3 py-1 text-xs font-medium rounded-lg bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 disabled:cursor-not-allowed text-white transition-colors"
-                  >
-                    <svg v-if="issuingFor === member.userId" class="animate-spin h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24">
-                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    {{ issuingFor === member.userId ? 'Sending...' : 'Send Invite' }}
-                  </button>
+                    :icon="issuingFor === member.userId ? ArrowPathIcon : EnvelopeIcon"
+                    label="Send badge invite"
+                    variant="primary"
+                  />
                   <span
                     v-else-if="member.badgeStatus === 'issued'"
                     class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-900 text-green-200"
@@ -300,7 +296,9 @@ import { useRoute } from 'vue-router'
 import { useSeriesStore } from '@/stores/seriesStore'
 import { usePermissions } from '@/composables/usePermissions'
 import BaseButton from '@/components/common/BaseButton.vue'
+import IconButton from '@/components/common/IconButton.vue'
 import apiService from '@/services/api'
+import { ArrowPathIcon, EnvelopeIcon } from '@heroicons/vue/24/outline'
 
 const route = useRoute()
 const seriesStore = useSeriesStore()

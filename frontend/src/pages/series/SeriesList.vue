@@ -70,20 +70,11 @@
           </div>
         </div>
 
-        <div class="px-6 py-3 bg-gray-750 border-t border-gray-700 flex justify-between items-center rounded-b-lg">
-          <router-link :to="`/series/${series.id}`" class="text-sm text-blue-400 hover:text-blue-300">
-            View Details
-          </router-link>
-          <div v-if="canCreate" class="flex items-center space-x-3">
-            <router-link :to="`/series/${series.id}/edit`" class="text-sm text-gray-400 hover:text-gray-300">
-              Edit
-            </router-link>
-            <button
-              @click="handleDelete(series)"
-              class="text-sm text-red-400 hover:text-red-300"
-            >
-              Delete
-            </button>
+        <div class="px-6 py-3 bg-gray-750 border-t border-gray-700 flex justify-end items-center rounded-b-lg">
+          <div class="flex items-center space-x-2">
+            <IconButton :icon="EyeIcon" label="View series details" :to="`/series/${series.id}`" variant="primary" />
+            <IconButton v-if="canCreate" :icon="PencilSquareIcon" label="Edit series" :to="`/series/${series.id}/edit`" />
+            <IconButton v-if="canCreate" :icon="TrashIcon" label="Delete series" variant="danger" @click="handleDelete(series)" />
           </div>
         </div>
       </div>
@@ -96,6 +87,8 @@ import { onMounted } from 'vue'
 import { useSeriesStore } from '@/stores/seriesStore'
 import { usePermissions } from '@/composables/usePermissions'
 import BaseButton from '@/components/common/BaseButton.vue'
+import IconButton from '@/components/common/IconButton.vue'
+import { EyeIcon, PencilSquareIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import type { WorkshopSeries } from '@/types/api'
 
 const seriesStore = useSeriesStore()

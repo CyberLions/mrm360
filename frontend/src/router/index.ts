@@ -6,6 +6,7 @@ import type { RouteRecordRaw } from 'vue-router'
 
 // Layouts
 import DefaultLayout from '@/layouts/DefaultLayout.vue'
+import KioskLayout from '@/layouts/KioskLayout.vue'
 
 // Pages
 import Dashboard from '@/pages/dashboard/Dashboard.vue'
@@ -195,15 +196,6 @@ const routes: RouteRecordRaw[] = [
             }
           },
           {
-            path: ':id/checkin',
-            name: 'EventCheckIn',
-            component: EventCheckIn,
-            meta: { 
-              title: 'Event Check-In',
-              requiresExecBoard: true
-            }
-          },
-          {
             path: ':id/rsvp',
             name: 'EventRSVP',
             component: EventRSVP,
@@ -258,6 +250,49 @@ const routes: RouteRecordRaw[] = [
           title: 'Tasks',
           requiresExecBoard: true
         }
+      },
+      {
+        path: 'inventory',
+        name: 'Inventory',
+        component: () => import('@/pages/inventory/InventoryBoard.vue'),
+        meta: { title: 'Inventory' }
+      },
+      {
+        path: 'inventory/items',
+        name: 'InventoryItems',
+        component: () => import('@/pages/inventory/InventoryItems.vue'),
+        meta: { title: 'All Inventory Items', requiresExecBoard: true }
+      },
+      {
+        path: 'inventory/items/:id',
+        name: 'InventoryItemDetails',
+        component: () => import('@/pages/inventory/InventoryItemDetails.vue'),
+        meta: { title: 'Item Details' }
+      },
+      {
+        path: 'inventory/bins',
+        name: 'InventoryBins',
+        component: () => import('@/pages/inventory/InventoryBins.vue'),
+        meta: { title: 'Bins and Locations', requiresExecBoard: true }
+      }
+    ]
+  },
+  {
+    path: '/',
+    component: KioskLayout,
+    meta: { requiresAuth: true, requiresExecBoard: true, kiosk: true },
+    children: [
+      {
+        path: 'events/:id/checkin',
+        name: 'EventCheckIn',
+        component: EventCheckIn,
+        meta: { title: 'Event Check-In' }
+      },
+      {
+        path: 'inventory/kiosk',
+        name: 'InventoryKiosk',
+        component: () => import('@/pages/inventory/InventoryKiosk.vue'),
+        meta: { title: 'Inventory Kiosk' }
       }
     ]
   },

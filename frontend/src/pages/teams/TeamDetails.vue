@@ -99,12 +99,12 @@
                     </div>
                   </div>
                   
-                  <router-link
+                  <IconButton
                     :to="`/events/${event.id}`"
-                    class="text-blue-400 hover:text-blue-300 text-sm font-medium"
-                  >
-                    View Event
-                  </router-link>
+                    :icon="EyeIcon"
+                    label="View event"
+                    variant="primary"
+                  />
                 </div>
               </div>
               
@@ -143,12 +143,12 @@
                     </div>
                   </div>
                   
-                  <router-link
+                  <IconButton
                     :to="`/teams/${subteam.id}`"
-                    class="text-blue-400 hover:text-blue-300 text-sm font-medium"
-                  >
-                    View Team
-                  </router-link>
+                    :icon="EyeIcon"
+                    label="View team"
+                    variant="primary"
+                  />
                 </div>
               </div>
             </div>
@@ -188,12 +188,12 @@
                     <span class="px-2 py-1 bg-blue-900 text-blue-200 rounded-full text-xs font-medium">
                       {{ userTeam.role }}
                     </span>
-                    <router-link
+                    <IconButton
                       :to="`/users/${userTeam.user.id}`"
-                      class="text-blue-400 hover:text-blue-300 text-sm font-medium"
-                    >
-                      View
-                    </router-link>
+                      :icon="EyeIcon"
+                      label="View member"
+                      variant="primary"
+                    />
                   </div>
                 </div>
               </div>
@@ -273,8 +273,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { useTeamStore } from '@/stores/teamStore'
 import { usePermissions } from '@/composables/usePermissions'
 import BaseButton from '@/components/common/BaseButton.vue'
+import IconButton from '@/components/common/IconButton.vue'
 import type { Team, User } from '@/types/api'
-import { CalendarIcon, UserGroupIcon } from '@heroicons/vue/24/outline'
+import { CalendarIcon, EyeIcon, UserGroupIcon } from '@heroicons/vue/24/outline'
 
 const route = useRoute()
 const router = useRouter()

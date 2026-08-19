@@ -88,6 +88,7 @@
             v-model="filters.semester"
             class="w-full px-4 py-2.5 bg-gray-700/50 border border-gray-600/50 rounded-lg text-gray-100 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50"
           >
+            <option value="">All Semesters</option>
             <option v-for="semester in semesterOptions" :key="semester" :value="semester">
               {{ formatSemester(semester) }}
             </option>
@@ -272,27 +273,22 @@
                 </div>
               </td>
               <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-xs sm:text-sm font-medium">
-                <div class="flex flex-col sm:flex-row space-y-1 sm:space-y-0 sm:space-x-2">
-                  <router-link
-                    :to="`/events/${event.id}`"
-                    class="text-blue-400 hover:text-blue-300"
-                  >
-                    View
-                  </router-link>
-                  <button
+                <div class="flex space-x-2">
+                  <IconButton :icon="EyeIcon" label="View event details" :to="`/events/${event.id}`" variant="primary" />
+                  <IconButton
                     v-if="canEdit"
+                    :icon="PencilSquareIcon"
+                    label="Edit event"
                     @click="editEvent(event)"
-                    class="text-green-400 hover:text-green-300"
-                  >
-                    Edit
-                  </button>
-                  <button
+                    variant="success"
+                  />
+                  <IconButton
                     v-if="canDelete"
+                    :icon="TrashIcon"
+                    label="Delete event"
                     @click="deleteEvent(event)"
-                    class="text-red-400 hover:text-red-300"
-                  >
-                    Delete
-                  </button>
+                    variant="danger"
+                  />
                 </div>
               </td>
             </tr>
@@ -302,8 +298,42 @@
     </div>
 
     <!-- Events Calendar -->
-    <div v-else class="bg-gray-800 shadow rounded-lg p-6 border border-gray-700">
-      <div class="grid grid-cols-7 gap-4">
+    <div v-else class="space-y-6">
+      <section
+        v-if="calendarMonth"
+        class="bg-gray-800 shadow rounded-lg p-6 border border-gray-700"
+      >
+        <div class="mb-4 flex items-center justify-center gap-3">
+          <button
+            type="button"
+            aria-label="Previous month"
+            :disabled="selectedMonthIndex <= 0"
+            class="rounded-md bg-gray-700 px-3 py-2 text-gray-200 hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-40"
+            @click="moveCalendarMonth(-1)"
+          >
+            &larr;
+          </button>
+          <label for="calendar-month" class="sr-only">Calendar month and year</label>
+          <select
+            id="calendar-month"
+            v-model="selectedCalendarMonth"
+            class="min-w-52 rounded-lg border border-gray-600/50 bg-gray-700 px-4 py-2.5 text-gray-100 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/50"
+          >
+            <option v-for="month in calendarMonthOptions" :key="month.key" :value="month.key">
+              {{ month.label }}
+            </option>
+          </select>
+          <button
+            type="button"
+            aria-label="Next month"
+            :disabled="selectedMonthIndex >= calendarMonthOptions.length - 1"
+            class="rounded-md bg-gray-700 px-3 py-2 text-gray-200 hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-40"
+            @click="moveCalendarMonth(1)"
+          >
+            &rarr;
+          </button>
+        </div>
+        <div class="grid grid-cols-7 gap-4">
         <!-- Calendar header -->
         <div
           v-for="day in ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']"
@@ -315,7 +345,7 @@
         
         <!-- Calendar days -->
         <div
-          v-for="day in calendarDays"
+          v-for="day in calendarMonth.days"
           :key="day.date"
           :class="[
             'min-h-24 p-2 border border-gray-700',
@@ -335,7 +365,8 @@
             </div>
           </div>
         </div>
-      </div>
+        </div>
+      </section>
     </div>
 
     <!-- Pagination - Only show in table view -->
@@ -399,13 +430,13 @@
     </div>
 
     <!-- Empty State -->
-    <div v-if="paginatedEvents.length === 0" class="text-center py-12">
+    <div v-if="displayedEvents.length === 0" class="text-center py-12">
       <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
       </svg>
       <h3 class="mt-2 text-sm font-medium text-gray-100">No events found</h3>
       <p class="mt-1 text-sm text-gray-400">
-        {{ filters.search || filters.category || filters.linkedTeamId || filters.status ? 'Try adjusting your search or filter criteria.' : 'No events have been created yet.' }}
+        {{ filters.search || filters.category || filters.linkedTeamId || filters.seriesId || filters.status || filters.semester ? 'Try adjusting your search or filter criteria.' : 'No events have been created yet.' }}
       </p>
     </div>
 
@@ -421,7 +452,8 @@ import { useTeamStore } from '@/stores/teamStore'
 import { useSeriesStore } from '@/stores/seriesStore'
 import { usePermissions } from '@/composables/usePermissions'
 import BaseButton from '@/components/common/BaseButton.vue'
-import { CalendarIcon } from '@heroicons/vue/24/outline'
+import { CalendarIcon, EyeIcon, PencilSquareIcon, TrashIcon } from '@heroicons/vue/24/outline'
+import IconButton from '@/components/common/IconButton.vue'
 import type { Event } from '@/types/api'
 import apiService from '@/services/api'
 import { buildSemesterOptions, formatSemester, inferCurrentSemester } from '@/utils/semester'
@@ -437,6 +469,8 @@ const viewMode = ref<'table' | 'calendar'>('table')
 const currentPage = ref(1)
 const itemsPerPage = 10
 const usedSemesters = ref<string[]>([])
+const calendarEvents = ref<Event[]>([])
+const selectedCalendarMonth = ref('')
 
 // Sorting state
 const sortBy = ref<string>('startTime')
@@ -466,6 +500,7 @@ const availableSeries = computed(() => seriesStore.seriesList)
 const totalPages = computed(() => eventStore.pagination.totalPages)
 const totalItems = computed(() => eventStore.pagination.total)
 const paginatedEvents = computed(() => eventStore.events)
+const displayedEvents = computed(() => viewMode.value === 'calendar' ? calendarEvents.value : paginatedEvents.value)
 
 const visiblePages = computed(() => {
   const pages = []
@@ -485,37 +520,70 @@ const visiblePages = computed(() => {
 })
 
 
-const calendarDays = computed(() => {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = now.getMonth()
-  
-  // Get first day of month and number of days
-  const firstDay = new Date(year, month, 1)
+const calendarMonthOptions = computed(() => {
+  if (calendarEvents.value.length === 0) return []
+
+  const eventDates = calendarEvents.value.map(event => new Date(event.startTime))
+  const firstEvent = new Date(Math.min(...eventDates.map(date => date.getTime())))
+  const lastEvent = new Date(Math.max(...eventDates.map(date => date.getTime())))
+  const cursor = new Date(firstEvent.getFullYear(), firstEvent.getMonth(), 1)
+  const lastMonth = new Date(lastEvent.getFullYear(), lastEvent.getMonth(), 1)
+  const months = []
+
+  while (cursor <= lastMonth) {
+    const year = cursor.getFullYear()
+    const month = cursor.getMonth()
+    const firstDay = new Date(year, month, 1)
+    months.push({
+      key: `${year}-${month}`,
+      label: firstDay.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
+      year,
+      month
+    })
+    cursor.setMonth(cursor.getMonth() + 1)
+  }
+
+  return months
+})
+
+const selectedMonthIndex = computed(() =>
+  calendarMonthOptions.value.findIndex(month => month.key === selectedCalendarMonth.value)
+)
+
+const calendarMonth = computed(() => {
+  const selected = calendarMonthOptions.value[selectedMonthIndex.value]
+  if (!selected) return null
+
+  const firstDay = new Date(selected.year, selected.month, 1)
   const startDate = new Date(firstDay)
-  startDate.setDate(startDate.getDate() - firstDay.getDay())
-  
+  startDate.setDate(firstDay.getDate() - firstDay.getDay())
+  const today = new Date()
   const days = []
+
   for (let i = 0; i < 42; i++) {
     const currentDate = new Date(startDate)
     currentDate.setDate(startDate.getDate() + i)
-    
-    const dayEvents = eventStore.events.filter(event => {
-      const eventDate = new Date(event.startTime)
-      return eventDate.toDateString() === currentDate.toDateString()
-    })
-    
+    const events = currentDate.getMonth() === selected.month
+      ? calendarEvents.value.filter(event =>
+          new Date(event.startTime).toDateString() === currentDate.toDateString()
+        )
+      : []
     days.push({
       date: currentDate.toISOString(),
       dayNumber: currentDate.getDate(),
-      isCurrentMonth: currentDate.getMonth() === month,
-      isToday: currentDate.toDateString() === now.toDateString(),
-      events: dayEvents
+      isCurrentMonth: currentDate.getMonth() === selected.month,
+      isToday: currentDate.toDateString() === today.toDateString(),
+      events
     })
   }
-  
-  return days
+
+  return { ...selected, days }
 })
+
+const moveCalendarMonth = (offset: number) => {
+  const month = calendarMonthOptions.value[selectedMonthIndex.value + offset]
+  if (month) selectedCalendarMonth.value = month.key
+}
 
 onMounted(async () => {
   const semesters = await apiService.getSemesters()
@@ -532,24 +600,55 @@ watch(currentPage, () => {
   loadData()
 })
 
+watch(viewMode, mode => {
+  filters.semester = mode === 'calendar' ? '' : inferCurrentSemester()
+})
+
+const eventQueryFilters = () => ({
+  query: filters.search || undefined,
+  category: filters.category ? filters.category.toUpperCase() as any : undefined,
+  linkedTeamId: filters.linkedTeamId || undefined,
+  seriesId: filters.seriesId || undefined,
+  sortBy: sortBy.value,
+  sortOrder: sortOrder.value,
+  semester: filters.semester || undefined
+})
+
+const loadAllCalendarEvents = async () => {
+  const pageSize = 100
+  const firstPage = await apiService.getEvents({ ...eventQueryFilters(), page: 1, limit: pageSize })
+  const events = [...(firstPage.data ?? [])]
+
+  for (let page = 2; page <= firstPage.pagination.totalPages; page++) {
+    const response = await apiService.getEvents({ ...eventQueryFilters(), page, limit: pageSize })
+    events.push(...(response.data ?? []))
+  }
+
+  calendarEvents.value = events
+
+  if (!calendarMonthOptions.value.some(month => month.key === selectedCalendarMonth.value)) {
+    const now = new Date()
+    const currentKey = `${now.getFullYear()}-${now.getMonth()}`
+    selectedCalendarMonth.value = calendarMonthOptions.value.some(month => month.key === currentKey)
+      ? currentKey
+      : calendarMonthOptions.value[0]?.key ?? ''
+  }
+}
+
 const loadData = async () => {
   try {
     loading.value = true
-    await Promise.all([
+    const requests: Promise<unknown>[] = [
       eventStore.fetchEvents({
         page: currentPage.value,
         limit: itemsPerPage,
-        query: filters.search || undefined,
-        category: filters.category ? filters.category.toUpperCase() as any : undefined,
-        linkedTeamId: filters.linkedTeamId || undefined,
-        seriesId: filters.seriesId || undefined,
-        sortBy: sortBy.value,
-        sortOrder: sortOrder.value,
-        semester: filters.semester
+        ...eventQueryFilters()
       }),
       teamStore.fetchTeams(),
       seriesStore.fetchAllSeries()
-    ])
+    ]
+    if (viewMode.value === 'calendar') requests.push(loadAllCalendarEvents())
+    await Promise.all(requests)
   } catch (error) {
     console.error('Failed to load data:', error)
   } finally {
@@ -564,7 +663,7 @@ const clearFilters = () => {
   filters.linkedTeamId = ''
   filters.seriesId = ''
   filters.status = '' as 'upcoming' | 'ongoing' | 'past'
-  filters.semester = inferCurrentSemester()
+  filters.semester = viewMode.value === 'calendar' ? '' : inferCurrentSemester()
   sortBy.value = 'startTime'
   sortOrder.value = 'desc'
   currentPage.value = 1

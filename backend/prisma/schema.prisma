@@ -53,6 +53,8 @@ model User {
   userTeams        UserTeam[]
   payments         Payment[]
   eventTeamMembers EventTeamMember[]
+  inventoryItems   InventoryItem[]
+  itemLoans        ItemLoan[]
 
   @@map("users")
 }
@@ -360,4 +362,51 @@ model Payment {
 
   @@index([semester])
   @@map("payments")
+}
+
+model InventoryBin {
+  id          String          @id @default(cuid())
+  name        String
+  room        String?
+  code        String?
+  description String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  items       InventoryItem[]
+
+  @@unique([room, name])
+  @@map("inventory_bins")
+}
+
+model InventoryItem {
+  id             String        @id @default(cuid())
+  barcode        String        @unique
+  name           String
+  binId          String?
+  checkedOutToId String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  bin            InventoryBin? @relation(fields: [binId], references: [id], onDelete: SetNull)
+  checkedOutTo   User?         @relation(fields: [checkedOutToId], references: [id], onDelete: SetNull)
+  loans          ItemLoan[]
+
+  @@index([name])
+  @@index([binId])
+  @@index([checkedOutToId])
+  @@map("inventory_items")
+}
+
+model ItemLoan {
+  id           String        @id @default(cuid())
+  itemId       String
+  userId       String
+  checkedOutAt DateTime      @default(now())
+  checkedInAt  DateTime?
+  returnBinId  String?
+  item         InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([itemId, checkedInAt])
+  @@index([userId, checkedInAt])
+  @@map("item_loans")
 }

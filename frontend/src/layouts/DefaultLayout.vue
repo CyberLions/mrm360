@@ -324,6 +324,19 @@
             </div>
 
             <!-- Profile Sidebar -->
+            <div v-else-if="currentPath.startsWith('/inventory')" class="space-y-2">
+              <router-link to="/inventory" :class="sidebarLinkClass('/inventory', true)"><ArchiveBoxIcon class="mr-3 h-5 w-5" />Inventory board</router-link>
+              <template v-if="authStore.isAdmin || authStore.isExecBoard">
+                <router-link to="/inventory/items" :class="sidebarLinkClass('/inventory/items')"><QueueListIcon class="mr-3 h-5 w-5" />All items</router-link>
+                <router-link to="/inventory/bins" :class="sidebarLinkClass('/inventory/bins', true)"><ArchiveBoxIcon class="mr-3 h-5 w-5" />Bins & locations</router-link>
+                <router-link to="/inventory?action=add-item" :class="sidebarActionClass('add-item')"><PlusIcon class="mr-3 h-5 w-5" />Add item</router-link>
+                <router-link to="/inventory?action=bulk" :class="sidebarActionClass('bulk')"><QueueListIcon class="mr-3 h-5 w-5" />Bulk add items</router-link>
+                <router-link to="/inventory?action=add-bin" :class="sidebarActionClass('add-bin')"><PlusIcon class="mr-3 h-5 w-5" />Create bin</router-link>
+                <router-link to="/inventory/kiosk" class="group flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-gray-700"><QrCodeIcon class="mr-3 h-5 w-5" />Kiosk mode</router-link>
+              </template>
+            </div>
+
+            <!-- Profile Sidebar -->
             <div v-else-if="currentPath === '/profile'" class="space-y-2">
               <div class="bg-gray-700 rounded-lg p-3">
                 <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
@@ -395,7 +408,10 @@ import {
   CalendarIcon,
   CogIcon,
   ChevronRightIcon,
-  PlusIcon
+  PlusIcon,
+  ArchiveBoxIcon,
+  QueueListIcon,
+  QrCodeIcon
 } from '@heroicons/vue/24/outline'
 
 const router = useRouter()
@@ -423,11 +439,24 @@ initializeMobileState()
 
 // Current path for sidebar logic
 const currentPath = computed(() => route.path)
+const sidebarLinkClass = (path: string, exact = false) => [
+  (exact ? route.path === path : route.path.startsWith(path)) && !route.query.action
+    ? 'bg-gray-700 border-blue-500 text-blue-300 shadow-sm'
+    : 'text-gray-300 hover:bg-gray-700 hover:text-gray-100 border-transparent',
+  'group flex items-center px-3 py-2 text-sm font-medium rounded-md border-l-4 transition-all duration-200'
+]
+const sidebarActionClass = (action: string) => [
+  route.path === '/inventory' && route.query.action === action
+    ? 'bg-gray-700 border-blue-500 text-blue-300 shadow-sm'
+    : 'text-gray-300 hover:bg-gray-700 hover:text-gray-100 border-transparent',
+  'group flex items-center px-3 py-2 text-sm font-medium rounded-md border-l-4 transition-all duration-200'
+]
 
 // Navigation items for top bar - filtered by permissions
 const navigationItems = computed(() => {
   const items = [
-    { name: 'Dashboard', to: '/dashboard' }
+    { name: 'Dashboard', to: '/dashboard' },
+    { name: 'Inventory', to: '/inventory' }
   ]
   
   // Only show admin/exec board sections to users with appropriate permissions
@@ -504,6 +533,8 @@ const currentSectionTitle = computed(() => {
     return 'Events'
   } else if (currentPath.startsWith('/tasks')) {
     return 'Tasks'
+  } else if (currentPath.startsWith('/inventory')) {
+    return 'Inventory'
   }
   
   return 'Navigation'
@@ -547,6 +578,8 @@ const currentSectionDescription = computed(() => {
     return 'Manage events and schedules'
   } else if (currentPath.startsWith('/tasks')) {
     return 'Manage tasks and assignments'
+  } else if (currentPath.startsWith('/inventory')) {
+    return 'Track items, bins, and checkouts'
   }
   
   return 'Navigate through the system'
@@ -603,6 +636,8 @@ const breadcrumbs = computed(() => {
     }
   } else if (currentPath.startsWith('/tasks')) {
     crumbs.push({ name: 'Tasks', path: '/tasks' })
+  } else if (currentPath.startsWith('/inventory')) {
+    crumbs.push({ name: 'Inventory', path: '/inventory' })
   }
   
   return crumbs

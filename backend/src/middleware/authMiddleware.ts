@@ -30,6 +30,7 @@ function getEffectiveRole(userRole: string, authentikGroups: string[]): string {
 
 export function withAuth(handler: (req: AuthenticatedRequest, res: NextApiResponse) => Promise<void>) {
   return async (req: NextApiRequest, res: NextApiResponse) => {
+    let authenticatedRequest: AuthenticatedRequest;
     try {
       // Get the authorization header
       const authHeader = req.headers.authorization;
@@ -68,7 +69,8 @@ export function withAuth(handler: (req: AuthenticatedRequest, res: NextApiRespon
       const effectiveRole = getEffectiveRole(user.role, user.authentikGroups || []);
 
       // Add user info to request
-      (req as AuthenticatedRequest).user = {
+      authenticatedRequest = req as AuthenticatedRequest;
+      authenticatedRequest.user = {
         id: user.id,
         email: user.email,
         firstName: user.firstName,
@@ -85,9 +87,6 @@ export function withAuth(handler: (req: AuthenticatedRequest, res: NextApiRespon
         authentikGroups: user.authentikGroups
       });
 
-      // Call the original handler
-      await handler(req as AuthenticatedRequest, res);
-      
     } catch (error) {
       logger.error('Authentication error:', error);
       return res.status(401).json({ 
@@ -95,6 +94,11 @@ export function withAuth(handler: (req: AuthenticatedRequest, res: NextApiRespon
         message: 'Authentication failed' 
       });
     }
+
+    // Handler errors are application errors, not authentication failures. Keeping
+    // this outside the auth try/catch prevents a server error from causing an
+    // OAuth logout/login loop in the client.
+    await handler(authenticatedRequest!, res);
   };
 }
 

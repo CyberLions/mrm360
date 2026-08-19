@@ -7,4 +7,11 @@ declare module '@zxing/browser' {
     ): Promise<void>
     reset(): void
   }
+  export class BrowserMultiFormatReader {
+    constructor()
+    decodeFromVideoElement(
+      videoElement: HTMLVideoElement,
+      callback: (result: any, error: any) => void
+    ): Promise<{ stop(): void }>
+  }
 }

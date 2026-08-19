@@ -158,29 +158,23 @@
             Subteam of {{ team.parentTeam.name }}
           </div>
           
-          <div class="flex justify-between items-center mt-4">
-            <router-link
-              :to="`/teams/${team.id}`"
-              class="text-blue-400 hover:text-blue-300 text-sm font-medium"
-            >
-              View Details
-            </router-link>
-            
+          <div class="flex justify-end items-center mt-4">
             <div class="flex space-x-2">
-              <button
+              <IconButton :icon="EyeIcon" label="View team details" :to="`/teams/${team.id}`" variant="primary" />
+              <IconButton
                 v-if="canUpdate"
+                :icon="PencilSquareIcon"
+                label="Edit team"
                 @click="editTeam(team)"
-                class="text-green-400 hover:text-green-300 text-sm"
-              >
-                Edit
-              </button>
-              <button
+                variant="success"
+              />
+              <IconButton
                 v-if="canDelete"
+                :icon="TrashIcon"
+                label="Delete team"
                 @click="deleteTeam(team)"
-                class="text-red-400 hover:text-red-300 text-sm"
-              >
-                Delete
-              </button>
+                variant="danger"
+              />
             </div>
           </div>
         </div>
@@ -256,7 +250,8 @@ import { useTeamStore } from '@/stores/teamStore'
 import { usePermissions } from '@/composables/usePermissions'
 import BaseButton from '@/components/common/BaseButton.vue'
 import type { Team } from '@/types/api'
-import { UserGroupIcon } from '@heroicons/vue/24/outline'
+import { EyeIcon, PencilSquareIcon, TrashIcon, UserGroupIcon } from '@heroicons/vue/24/outline'
+import IconButton from '@/components/common/IconButton.vue'
 import apiService from '@/services/api'
 import { buildSemesterOptions, formatSemester, inferCurrentSemester } from '@/utils/semester'
 
