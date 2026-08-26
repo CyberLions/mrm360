@@ -140,24 +140,14 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
+import { initiateOAuthLogin } from '@/utils/oauth'
 
-const router = useRouter()
-const route = useRoute()
 const authStore = useAuthStore()
 const isLoading = ref(false)
 
 onMounted(async () => {
-  // Check if this is an OIDC callback
-  const { code, state } = route.query
-  
-  if (code && state) {
-    await handleOIDCCallback(code as string, state as string)
-  } else {
-    // Check if user is already authenticated
-    await checkAuthStatus()
-  }
+  await checkAuthStatus()
 })
 
 async function checkAuthStatus() {
@@ -174,110 +164,10 @@ async function checkAuthStatus() {
   }
 }
 
-async function handleOIDCCallback(code: string, state: string) {
-  try {
-    isLoading.value = true
-    
-    // Verify state parameter
-    const storedState = sessionStorage.getItem('oidc_state')
-    if (state !== storedState) {
-      console.error('Invalid state parameter')
-      alert('Authentication failed: Invalid state parameter')
-      return
-    }
-    
-    // Clear stored state
-    sessionStorage.removeItem('oidc_state')
-    
-    // Get redirect target
-    const redirectTarget = sessionStorage.getItem('oidc_redirect_target') || '/join'
-    sessionStorage.removeItem('oidc_redirect_target')
-    
-    // Exchange code for token
-    const success = await authStore.loginWithOIDC(code, state)
-    
-    if (success) {
-      console.log('OAuth2 authentication successful, redirecting to Discord verification...')
-      
-      // For now, assume user needs Discord linking and go directly to Discord verification
-      // This avoids the API call that's currently failing
-      router.push('/join/dd-verify')
-      
-      // TODO: Re-enable Discord status check once backend API is working
-      /*
-      try {
-        // Check if user has Discord linked
-        const response = await fetch('/api/user/discord-status', {
-          headers: {
-            'Authorization': `Bearer ${authStore.accessToken}`
-          }
-        })
-        
-        if (response.ok) {
-          const data = await response.json()
-          console.log('Discord status response:', data)
-          
-          if (data.hasDiscord) {
-            // User has Discord linked, go to interests
-            console.log('User has Discord linked, redirecting to interests')
-            router.push('/join/interests')
-          } else {
-            // User needs to link Discord
-            console.log('User needs Discord linking, redirecting to Discord verification')
-            router.push('/join/dd-verify')
-          }
-        } else {
-          console.warn('Failed to check Discord status, redirecting to Discord verification')
-          // Error checking Discord status, go to Discord verification
-          router.push('/join/dd-verify')
-        }
-      } catch (discordCheckError) {
-        console.error('Error checking Discord status:', discordCheckError)
-        // If Discord status check fails, assume user needs Discord linking
-        router.push('/join/dd-verify')
-      }
-      */
-    } else {
-      alert('Authentication failed. Please try again.')
-    }
-  } catch (error) {
-    console.error('OIDC callback error:', error)
-    alert('Authentication failed. Please try again.')
-  } finally {
-    isLoading.value = false
-  }
-}
-
-// Initiate OIDC login with redirect to join page
+// Initiate OIDC login via the shared flow, always through the canonical
+// redirect_uri (Callback.vue at /auth/callback), then land on Discord verify.
 function initiateOIDCLogin() {
   isLoading.value = true
-  
-  const issuer = window.ENV.VITE_AUTHENTIK_BASE_URL
-  const clientId = window.ENV.VITE_AUTHENTIK_CLIENT_ID
-  const redirectUri = `${window.location.origin}/join` // Redirect back to join page
-  
-  if (!issuer || !clientId) {
-    console.error('OIDC configuration missing')
-    isLoading.value = false
-    return
-  }
-
-  // Generate state parameter for CSRF protection
-  const state = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
-  
-  // Store state and redirect target
-  sessionStorage.setItem('oidc_state', state)
-  sessionStorage.setItem('oidc_redirect_target', '/join')
-  
-  // Build authorization URL
-  const authUrl = new URL(`${issuer}/application/o/authorize/`)
-  authUrl.searchParams.set('client_id', clientId)
-  authUrl.searchParams.set('redirect_uri', redirectUri)
-  authUrl.searchParams.set('scope', 'openid email profile groups')
-  authUrl.searchParams.set('response_type', 'code')
-  authUrl.searchParams.set('state', state)
-  
-  // Redirect to Authentik
-  window.location.href = authUrl.toString()
+  initiateOAuthLogin('/join/dd-verify')
 }
 </script>
