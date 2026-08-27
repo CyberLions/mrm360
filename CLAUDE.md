@@ -135,10 +135,11 @@ Vue 3 `<script setup>` + TS, Vite, Pinia, Vue Router, Tailwind, vee-validate/yup
 - `src/services/api.ts` — single `ApiService` class wrapping axios; attaches the Bearer token,
   and on a missing token for a non-auth request triggers `authStore.handleNoAuthentication()`.
 - One Pinia store per domain in `src/stores/` (`authStore`, `userStore`, `eventStore`, …).
-- `src/router/index.ts` — `/` and unknown paths redirect to `/dashboard`; the guard sends
-  anonymous users straight to Authentik login and authenticated-but-not-onboarded users to the
-  public `/join` flow (`onboardingCompleted` from the session response, `meta.onboarding` marks
-  the exempt routes). Route guards also use `composables/usePermissions`.
+- `src/router/index.ts` — `/` and unknown paths redirect to `/dashboard`, except an anonymous
+  visitor on the `join.` host lands on `/join`. The guard sends anonymous users straight to
+  Authentik login and authenticated-but-not-onboarded users to the public `/join` flow
+  (`onboardingCompleted` from the session response, `meta.onboarding` marks the exempt routes).
+  Route guards also use `composables/usePermissions`.
 - Two layouts: `DefaultLayout` and `KioskLayout` (unattended check-in / inventory kiosk pages).
 - QR codes: members get a QR for event check-in; kiosk pages scan via `@zxing/browser`.
 
