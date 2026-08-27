@@ -61,6 +61,18 @@ export default withCORS(async function handler(req: NextApiRequest, res: NextApi
       return res.status(401).json({ error: 'User not found' });
     }
 
+    // Determine whether the user has finished onboarding. Onboarding is
+    // considered complete once the final step (the interests form) has been
+    // submitted, which persists a class rank and at least one interest.
+    const [userClassRank, interestCount] = await Promise.all([
+      prisma.userClassRank.findUnique({
+        where: { userId: user.id },
+        select: { id: true }
+      }),
+      prisma.userInterest.count({ where: { userId: user.id } })
+    ]);
+    const onboardingCompleted = !!userClassRank && interestCount > 0;
+
     // Get user groups for permissions
     const userGroups = await prisma.userGroup.findMany({
       where: { userId: user.id },
@@ -108,7 +120,8 @@ export default withCORS(async function handler(req: NextApiRequest, res: NextApi
         isActive: !!user.authentikId, // User is active if they have an authentikId
         createdAt: user.createdAt,
         authentikGroups: userGroups.map((ug: any) => ug.group.name),
-        abilities: abilities
+        abilities: abilities,
+        onboardingCompleted
       }
     });
 

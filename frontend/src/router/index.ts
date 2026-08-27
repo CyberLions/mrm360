@@ -33,18 +33,10 @@ import DiscordVerify from '@/pages/join/DiscordVerify.vue'
 import Interests from '@/pages/join/Interests.vue'
 import Profile from '@/pages/Profile.vue'
 
-// Anonymous visitors landing on the site (root or an unknown path) should hit
-// the /join onboarding flow, not get bounced straight into a forced OAuth
-// login on their way to the dashboard. Only send already-logged-in users
-// (accessToken present) straight to the dashboard.
-function landingRedirect() {
-  return localStorage.getItem('accessToken') ? '/dashboard' : '/join'
-}
-
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
-    redirect: landingRedirect
+    redirect: '/dashboard'
   },
 
   {
@@ -57,19 +49,19 @@ const routes: RouteRecordRaw[] = [
     path: '/join',
     name: 'Join',
     component: Join,
-    meta: {}
+    meta: { onboarding: true }
   },
   {
     path: '/join/dd-verify',
     name: 'DiscordVerify',
     component: DiscordVerify,
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, onboarding: true }
   },
   {
     path: '/join/interests',
     name: 'Interests',
     component: Interests,
-    meta: { requiresAuth: true }
+    meta: { requiresAuth: true, onboarding: true }
   },
   {
     path: '/checkin/:code',
@@ -306,7 +298,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/:pathMatch(.*)*',
-    redirect: landingRedirect
+    redirect: '/dashboard'
   }
 ]
 
@@ -343,6 +335,16 @@ router.beforeEach(async (to, from, next) => {
       initiateOAuthLogin(targetUrl)
       return
     }
+  }
+
+  // Gate the dashboard (and every other authenticated area) behind onboarding.
+  // Logged-in users who haven't finished the /join flow are sent there; once
+  // it's complete they get the dashboard as normal. The onboarding pages
+  // themselves are exempt so the flow can be completed, and anonymous users are
+  // already handled above (straight to the Authentik login).
+  if (authStore.isAuthenticated && !to.meta.onboarding && !authStore.hasCompletedOnboarding) {
+    next('/join')
+    return
   }
 
   // Check if route requires guest (not authenticated)

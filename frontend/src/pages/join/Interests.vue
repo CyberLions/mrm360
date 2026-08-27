@@ -252,7 +252,9 @@ async function submitInterests() {
     })
     
     if (response.ok) {
-      // Redirect to dashboard with success message
+      // Refresh the session so the router guard sees the now-complete
+      // onboarding status before we navigate to the (gated) dashboard.
+      await authStore.checkAuth()
       router.push('/dashboard?onboarding=complete')
     } else {
       const errorData = await response.json()

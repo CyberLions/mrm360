@@ -34,6 +34,11 @@ export const useAuthStore = defineStore('auth', () => {
     return user.value?.displayName || user.value?.firstName || 'User'
   })
 
+  // Whether the authenticated user has finished the /join onboarding flow.
+  // Undefined (unknown) is treated as complete so a stale cache or a failed
+  // session refresh never traps an existing user on the onboarding page.
+  const hasCompletedOnboarding = computed(() => user.value?.onboardingCompleted !== false)
+
   // Actions
   function setAuthenticated(authenticated: boolean) {
     isAuthenticated.value = authenticated
@@ -367,6 +372,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAdmin,
     userAbilities,
     displayName,
+    hasCompletedOnboarding,
     
     // Actions
     loginWithCredentials,

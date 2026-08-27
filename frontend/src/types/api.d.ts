@@ -382,6 +382,9 @@ export interface AuthUser {
   abilities: Ability[]
   discordAccount?: DiscordAccount
   interests?: UserInterest[]
+  // True once the user has finished the /join onboarding flow (class rank +
+  // interests submitted). Used to gate access to the dashboard.
+  onboardingCompleted?: boolean
 }
 
 export interface Ability {
