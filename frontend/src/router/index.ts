@@ -33,10 +33,20 @@ import DiscordVerify from '@/pages/join/DiscordVerify.vue'
 import Interests from '@/pages/join/Interests.vue'
 import Profile from '@/pages/Profile.vue'
 
+// The `join.` host is the public onboarding entry point: an anonymous visitor
+// hitting its root (or an unknown path) lands on the /join page. Every other
+// host — and any logged-in user — goes to /dashboard, where the guard forces
+// Authentik login for anonymous visitors.
+function landingRedirect() {
+  const onJoinHost = window.location.hostname.startsWith('join.')
+  if (onJoinHost && !localStorage.getItem('accessToken')) return '/join'
+  return '/dashboard'
+}
+
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
-    redirect: '/dashboard'
+    redirect: landingRedirect
   },
 
   {
@@ -298,7 +308,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/:pathMatch(.*)*',
-    redirect: '/dashboard'
+    redirect: landingRedirect
   }
 ]
 
