@@ -33,10 +33,18 @@ import DiscordVerify from '@/pages/join/DiscordVerify.vue'
 import Interests from '@/pages/join/Interests.vue'
 import Profile from '@/pages/Profile.vue'
 
+// Anonymous visitors landing on the site (root or an unknown path) should hit
+// the /join onboarding flow, not get bounced straight into a forced OAuth
+// login on their way to the dashboard. Only send already-logged-in users
+// (accessToken present) straight to the dashboard.
+function landingRedirect() {
+  return localStorage.getItem('accessToken') ? '/dashboard' : '/join'
+}
+
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
-    redirect: '/dashboard'
+    redirect: landingRedirect
   },
 
   {
@@ -298,7 +306,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/:pathMatch(.*)*',
-    redirect: '/dashboard'
+    redirect: landingRedirect
   }
 ]
 
