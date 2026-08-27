@@ -20,6 +20,16 @@ function getEffectiveRole(userRole: string, authentikGroups: string[]): string {
   return userRole;
 }
 
+// Onboarding is complete once the user has submitted the final interests step,
+// which persists a class rank and at least one interest.
+async function getOnboardingCompleted(userId: string): Promise<boolean> {
+  const [userClassRank, interestCount] = await Promise.all([
+    prisma.userClassRank.findUnique({ where: { userId }, select: { id: true } }),
+    prisma.userInterest.count({ where: { userId } })
+  ]);
+  return !!userClassRank && interestCount > 0;
+}
+
 export default withCORS(async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -98,6 +108,8 @@ async function handleOIDCLogin(req: NextApiRequest, res: NextApiResponse, code: 
     // Determine effective role based on OIDC groups
     const effectiveRole = getEffectiveRole(user.role, authentikGroups);
     
+    const onboardingCompleted = await getOnboardingCompleted(user.id);
+
     logger.info('OIDC login successful', { userId: user.id, email: user.email, effectiveRole });
 
     return res.status(200).json({
@@ -113,7 +125,8 @@ async function handleOIDCLogin(req: NextApiRequest, res: NextApiResponse, code: 
         paidStatus: user.paidStatus,
         isActive: !!user.authentikId, // User is active if they have an authentikId
         createdAt: user.createdAt,
-        authentikGroups: authentikGroups
+        authentikGroups: authentikGroups,
+        onboardingCompleted
       }
     });
 
@@ -164,6 +177,8 @@ async function handlePasswordLogin(req: NextApiRequest, res: NextApiResponse, us
     // Determine effective role based on OIDC groups
     const effectiveRole = getEffectiveRole(user.role, authentikGroups);
     
+    const onboardingCompleted = await getOnboardingCompleted(user.id);
+
     logger.info('Password login successful', { userId: user.id, username: user.username, effectiveRole });
 
     return res.status(200).json({
@@ -179,7 +194,8 @@ async function handlePasswordLogin(req: NextApiRequest, res: NextApiResponse, us
         paidStatus: user.paidStatus,
         isActive: !!user.authentikId, // User is active if they have an authentikId
         createdAt: user.createdAt,
-        authentikGroups: authentikGroups
+        authentikGroups: authentikGroups,
+        onboardingCompleted
       }
     });
 
