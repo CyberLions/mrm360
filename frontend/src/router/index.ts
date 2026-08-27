@@ -329,8 +329,9 @@ router.beforeEach(async (to, from, next) => {
       // Store the target URL for redirect after login
       const targetUrl = to.fullPath
       console.log('Authentication required, storing redirect URL:', targetUrl)
-      
-      // Redirect to OAuth if not authenticated
+
+      // Redirect to OAuth if not authenticated (initiateOAuthLogin itself
+      // hops to the canonical auth host first if we're on a mirrored hostname)
       initiateOAuthLogin(targetUrl)
       return
     }

@@ -37,9 +37,23 @@ export function initiateOAuthLogin(redirectUrl?: string) {
   const issuer = window.ENV.VITE_AUTHENTIK_BASE_URL
   const clientId = window.ENV.VITE_AUTHENTIK_CLIENT_ID
   const redirectUri = window.ENV.VITE_AUTHENTIK_REDIRECT_URI
-  
+
   if (!issuer || !clientId || !redirectUri) {
     console.error('OIDC configuration missing')
+    return
+  }
+
+  // This app is served under multiple hostnames (e.g. join.psuccso.org mirrors
+  // mrm.psuccso.org at the ingress level, same pod/static assets). Authentik
+  // always sends the callback back to the single canonical redirect_uri host,
+  // so storing OIDC state on any other host would write it somewhere the
+  // callback page can never read from. Hop to the canonical host first (its
+  // own load of this same code will then run the flow below on the right origin).
+  const canonicalHost = new URL(redirectUri).host
+  if (window.location.host !== canonicalHost) {
+    const canonicalProtocol = new URL(redirectUri).protocol
+    const targetPath = redirectUrl || window.location.pathname + window.location.search
+    window.location.href = `${canonicalProtocol}//${canonicalHost}${targetPath}`
     return
   }
 
