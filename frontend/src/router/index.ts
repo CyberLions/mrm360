@@ -33,19 +33,10 @@ import DiscordVerify from '@/pages/join/DiscordVerify.vue'
 import Interests from '@/pages/join/Interests.vue'
 import Profile from '@/pages/Profile.vue'
 
-// The site root (and any unknown path) is also the onboarding entry point
-// (e.g. the bare join.psuccso.org host). Anonymous visitors land on the public
-// /join page and must click through it to start OAuth — we don't bounce them
-// straight into Authentik from here. Direct navigation to /dashboard or any
-// other protected route still forces login immediately (see the guard below).
-function landingRedirect() {
-  return localStorage.getItem('accessToken') ? '/dashboard' : '/join'
-}
-
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
-    redirect: landingRedirect
+    redirect: '/dashboard'
   },
 
   {
@@ -307,7 +298,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/:pathMatch(.*)*',
-    redirect: landingRedirect
+    redirect: '/dashboard'
   }
 ]
 
