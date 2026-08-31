@@ -89,7 +89,7 @@
     </div>
     <div
       v-else
-      class="overflow-hidden rounded-lg border border-gray-700 bg-gray-800 shadow"
+      class="overflow-hidden rounded-lg border border-gray-700 bg-gray-800 shadow [contain:layout]"
     >
       <div
         class="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800"

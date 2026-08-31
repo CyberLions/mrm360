@@ -155,7 +155,7 @@
           </template>
         </div>
 
-        <div v-else class="overflow-x-auto">
+        <div v-else class="overflow-x-auto [contain:layout]">
           <table class="min-w-full divide-y divide-gray-700">
             <thead class="bg-gray-750">
               <tr>

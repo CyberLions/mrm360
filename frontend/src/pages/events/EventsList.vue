@@ -187,45 +187,45 @@
     </div>
 
     <!-- Events Table -->
-    <div v-if="viewMode === 'table'" class="bg-gray-800 shadow rounded-lg overflow-hidden border border-gray-700">
+    <div v-if="viewMode === 'table'" class="bg-gray-800 shadow rounded-lg overflow-hidden border border-gray-700 [contain:layout]">
       <div class="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
-        <table class="min-w-full divide-y divide-gray-700">
+        <table class="w-full divide-y divide-gray-700">
           <thead class="bg-gray-700">
             <tr>
-              <th 
+              <th
                 @click="toggleSort('title')"
-                class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider min-w-[200px] cursor-pointer hover:bg-gray-600 select-none"
+                class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-600 select-none"
               >
                 <span class="flex items-center gap-1">
                   Event
                   <span class="text-gray-400">{{ getSortIcon('title') }}</span>
                 </span>
               </th>
-              <th 
+              <th
                 @click="toggleSort('startTime')"
-                class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider min-w-[120px] cursor-pointer hover:bg-gray-600 select-none"
+                class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-600 select-none"
               >
                 <span class="flex items-center gap-1">
                   Date & Time
                   <span class="text-gray-400">{{ getSortIcon('startTime') }}</span>
                 </span>
               </th>
-              <th 
+              <th
                 @click="toggleSort('category')"
-                class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider min-w-[80px] cursor-pointer hover:bg-gray-600 select-none"
+                class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-600 select-none"
               >
                 <span class="flex items-center gap-1">
                   Category
                   <span class="text-gray-400">{{ getSortIcon('category') }}</span>
                 </span>
               </th>
-              <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider min-w-[100px]">
+              <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                 Team
               </th>
-              <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider min-w-[90px]">
+              <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                 Attendance
               </th>
-              <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider min-w-[100px]">
+              <th class="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
@@ -240,7 +240,7 @@
                     </div>
                   </div>
                   <div class="ml-2 sm:ml-4 min-w-0 flex-1">
-                    <div class="text-sm font-medium text-gray-100 truncate">
+                    <div class="text-sm font-medium text-gray-100 truncate max-w-[150px] sm:max-w-xs" :title="event.title">
                       {{ event.title }}
                     </div>
                     <div class="text-xs text-blue-300">{{ formatSemester(event.semester) }}</div>
@@ -301,14 +301,14 @@
     <div v-else class="space-y-6">
       <section
         v-if="calendarMonth"
-        class="bg-gray-800 shadow rounded-lg p-6 border border-gray-700"
+        class="bg-gray-800 shadow rounded-lg p-3 sm:p-6 border border-gray-700"
       >
-        <div class="mb-4 flex items-center justify-center gap-3">
+        <div class="mb-4 flex items-center justify-center gap-2 sm:gap-3">
           <button
             type="button"
             aria-label="Previous month"
             :disabled="selectedMonthIndex <= 0"
-            class="rounded-md bg-gray-700 px-3 py-2 text-gray-200 hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-40"
+            class="shrink-0 rounded-md bg-gray-700 px-3 py-2 text-gray-200 hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-40"
             @click="moveCalendarMonth(-1)"
           >
             &larr;
@@ -317,7 +317,7 @@
           <select
             id="calendar-month"
             v-model="selectedCalendarMonth"
-            class="min-w-52 rounded-lg border border-gray-600/50 bg-gray-700 px-4 py-2.5 text-gray-100 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/50"
+            class="min-w-0 flex-1 sm:flex-none sm:min-w-52 rounded-lg border border-gray-600/50 bg-gray-700 px-3 sm:px-4 py-2.5 text-gray-100 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/50"
           >
             <option v-for="month in calendarMonthOptions" :key="month.key" :value="month.key">
               {{ month.label }}
@@ -327,13 +327,44 @@
             type="button"
             aria-label="Next month"
             :disabled="selectedMonthIndex >= calendarMonthOptions.length - 1"
-            class="rounded-md bg-gray-700 px-3 py-2 text-gray-200 hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-40"
+            class="shrink-0 rounded-md bg-gray-700 px-3 py-2 text-gray-200 hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-40"
             @click="moveCalendarMonth(1)"
           >
             &rarr;
           </button>
         </div>
-        <div class="grid grid-cols-7 gap-4">
+
+        <!-- Mobile: agenda list of days with events -->
+        <div class="sm:hidden space-y-2">
+          <p v-if="monthAgendaDays.length === 0" class="py-8 text-center text-sm text-gray-400">
+            No events in {{ calendarMonth.label }}.
+          </p>
+          <div
+            v-for="day in monthAgendaDays"
+            :key="day.date"
+            :class="[
+              'rounded-lg border p-3',
+              day.isToday ? 'border-blue-700 bg-blue-900/40' : 'border-gray-700 bg-gray-800'
+            ]"
+          >
+            <div class="mb-2 text-sm font-semibold text-gray-200">{{ formatAgendaDate(day.date) }}</div>
+            <div class="space-y-1.5">
+              <button
+                v-for="event in day.events"
+                :key="event.id"
+                type="button"
+                class="flex w-full items-baseline gap-2 rounded-md bg-blue-600 px-3 py-2 text-left text-white hover:bg-blue-700"
+                @click="viewEvent(event)"
+              >
+                <span class="shrink-0 text-xs font-medium tabular-nums">{{ formatEventTime(event.startTime) }}</span>
+                <span class="truncate text-sm">{{ event.title }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Desktop: month grid -->
+        <div class="hidden sm:grid grid-cols-7 gap-1 lg:gap-4">
         <!-- Calendar header -->
         <div
           v-for="day in ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']"
@@ -342,13 +373,13 @@
         >
           {{ day }}
         </div>
-        
+
         <!-- Calendar days -->
         <div
           v-for="day in calendarMonth.days"
           :key="day.date"
           :class="[
-            'min-h-24 p-2 border border-gray-700',
+            'min-h-24 p-1 lg:p-2 border border-gray-700',
             day.isCurrentMonth ? 'bg-gray-800' : 'bg-gray-900',
             day.isToday ? 'bg-blue-900' : ''
           ]"
@@ -359,6 +390,7 @@
               v-for="event in day.events"
               :key="event.id"
               class="text-xs p-1 rounded bg-blue-600 text-white truncate cursor-pointer hover:bg-blue-700"
+              :title="event.title"
               @click="viewEvent(event)"
             >
               {{ event.title }}
@@ -579,6 +611,20 @@ const calendarMonth = computed(() => {
 
   return { ...selected, days }
 })
+
+const monthAgendaDays = computed(() =>
+  (calendarMonth.value?.days ?? []).filter(day => day.isCurrentMonth && day.events.length > 0)
+)
+
+const formatAgendaDate = (dateString: string) =>
+  new Date(dateString).toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric'
+  })
+
+const formatEventTime = (dateString: string) =>
+  new Date(dateString).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
 
 const moveCalendarMonth = (offset: number) => {
   const month = calendarMonthOptions.value[selectedMonthIndex.value + offset]

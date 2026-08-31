@@ -144,7 +144,7 @@
     </div>
 
     <!-- Users Table -->
-    <div class="bg-gray-800 shadow rounded-lg overflow-hidden border border-gray-700">
+    <div class="bg-gray-800 shadow rounded-lg overflow-hidden border border-gray-700 [contain:layout]">
       <div class="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
         <table class="w-full divide-y divide-gray-700">
           <thead class="bg-gray-700">

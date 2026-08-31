@@ -62,7 +62,7 @@
     </div>
     <div
       v-else
-      class="overflow-hidden rounded-lg border border-gray-700 bg-gray-800 shadow"
+      class="overflow-hidden rounded-lg border border-gray-700 bg-gray-800 shadow [contain:layout]"
     >
       <div class="overflow-x-auto">
         <table class="w-full divide-y divide-gray-700">

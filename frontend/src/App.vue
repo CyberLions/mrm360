@@ -44,6 +44,10 @@ watch(() => route.path, async (newPath) => {
 </script>
 
 <style>
+html, body {
+  overflow-x: hidden;
+}
+
 #app {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
