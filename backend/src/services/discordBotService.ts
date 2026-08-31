@@ -23,7 +23,8 @@ import {
   ButtonStyle,
   ActionRowBuilder,
   ComponentType,
-  EmbedBuilder
+  EmbedBuilder,
+  SnowflakeUtil
 } from 'discord.js';
 import { DiscordChannel, DiscordRole, DiscordPermission } from '@/types';
 import { logger } from '@/utils/logger';
@@ -63,13 +64,20 @@ export class DiscordBotService {
 
 
 
-    // Create Discord client with necessary intents
+    // Create Discord client with necessary intents.
+    // `rest.timeout` is raised well above the 15s default: a slow POST that
+    // crosses the default timeout is aborted and *retried* by @discordjs/rest,
+    // and message-create is not idempotent, so a transient latency spike would
+    // otherwise post the same message 2-3 times (see sendWelcomeMessage).
     this.client = new Client({
       intents: [
         GatewayIntentBits.Guilds,
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages
-      ]
+      ],
+      rest: {
+        timeout: 60_000
+      }
     });
 
     this.setupEventHandlers();
@@ -820,7 +828,13 @@ export class DiscordBotService {
       }
 
       const messageContent = this.buildRoleSelectionMessage();
-      const message = await channel.send(messageContent);
+      // enforceNonce so a retried POST (see sendWelcomeMessage) can't duplicate
+      // this message.
+      const message = await channel.send({
+        nonce: SnowflakeUtil.generate().toString(),
+        enforceNonce: true,
+        content: messageContent
+      });
 
       // Add reactions for each role. A failure here (e.g. rate limiting) must
       // not bubble up and fail the job, since a job retry would call this
@@ -1466,7 +1480,13 @@ Green buttons: Select roles that interest you.
       const buttonRow = new ActionRowBuilder<ButtonBuilder>()
         .addComponents(verifyButton);
 
+      // enforceNonce makes this send idempotent: if @discordjs/rest aborts a
+      // slow POST and retries it, Discord rejects the retry instead of posting
+      // a duplicate welcome. The nonce is fixed for this call, so it is shared
+      // across the internal retries of the single send() below.
       await channel.send({
+        nonce: SnowflakeUtil.generate().toString(),
+        enforceNonce: true,
         content: `${member}`,
         embeds: [welcomeEmbed],
         components: [buttonRow]
