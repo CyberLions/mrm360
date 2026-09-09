@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PaymentStatus, PrismaClient } from '@prisma/client';
 import { AuthentikService } from './authentikService';
 import { AuthentikServiceFactory } from './authentikServiceFactory';
 import { logger } from '@/utils/logger';
@@ -180,7 +180,15 @@ export class MemberPaidStatusService {
           id: true,
           authentikPk: true,
           paidStatus: true,
-          email: true
+          email: true,
+          payments: {
+            where: {
+              status: PaymentStatus.COMPLETED,
+              expiresAt: { gt: new Date() }
+            },
+            select: { id: true },
+            take: 1
+          }
         }
       });
 
@@ -189,7 +197,24 @@ export class MemberPaidStatusService {
 
       for (const user of users) {
         try {
-          await this.manageAuthentikGroupMembership(user.authentikPk!, user.paidStatus);
+          const expectedPaidStatus = user.payments.length > 0;
+
+          if (user.paidStatus !== expectedPaidStatus) {
+            await this.prisma.user.update({
+              where: { id: user.id },
+              data: { paidStatus: expectedPaidStatus }
+            });
+            logger.warn('Corrected paid status discrepancy during Authentik sync', {
+              userId: user.id,
+              email: user.email,
+              previousPaidStatus: user.paidStatus,
+              expectedPaidStatus
+            });
+          }
+
+          // Apply the expected state unconditionally so the recurring sync also
+          // repairs discrepancies in Authentik itself.
+          await this.manageAuthentikGroupMembership(user.authentikPk!, expectedPaidStatus);
           processed++;
         } catch (error) {
           logger.error('Failed to sync user paid status', { error, userId: user.id, email: user.email });

@@ -201,8 +201,7 @@ export class PaymentService {
               id: true,
               email: true,
               firstName: true,
-              lastName: true,
-              paidStatus: true
+              lastName: true
             }
           }
         }
@@ -221,13 +220,13 @@ export class PaymentService {
         // Get user's current payment status
         const paymentStatus = await this.getUserPaymentStatus(payment.userId);
         
-        // Update user's paid status if it has changed
-        if (payment.user.paidStatus !== paymentStatus.isPaid) {
-          await this.memberPaidStatusService.updateMemberPaidStatus(
-            payment.userId, 
-            paymentStatus.isPaid
-          );
-        }
+        // Always reconcile the external group as well as the cached database flag.
+        // Restricting this to database changes leaves users in member-paid when a
+        // previous Authentik removal failed (or membership was changed manually).
+        await this.memberPaidStatusService.updateMemberPaidStatus(
+          payment.userId,
+          paymentStatus.isPaid
+        );
 
         results.push({
           userId: payment.userId,
