@@ -542,7 +542,7 @@
                   <BaseButton
                     variant="outline"
                     size="sm"
-                    @click="copyCheckInLink"
+                    @click="copyQrLink('checkin')"
                     class="whitespace-nowrap"
                   >
                     <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -556,7 +556,58 @@
                 variant="outline"
                 size="sm"
                 class="mt-3"
-                @click="downloadQRCode"
+                @click="downloadQRCode('checkin')"
+              >
+                Download QR Code
+              </BaseButton>
+            </div>
+          </div>
+        </div>
+
+        <!-- RSVP QR Code Card -->
+        <div v-if="authStore.isAdmin && event?.rsvpCode" class="bg-gray-800 shadow rounded-lg border border-gray-700">
+          <div class="px-4 py-5 sm:p-6">
+            <h3 class="text-lg leading-6 font-medium text-gray-100 mb-4">
+              RSVP QR Code
+            </h3>
+            <div class="text-center">
+              <div class="bg-white p-4 rounded-lg border-2 border-gray-600 inline-block">
+                <QRCodeVue3
+                  ref="rsvpQrCodeRef"
+                  :value="rsvpQrCodeValue"
+                  :width="500"
+                  :height="500"
+                  :qr-options="{ errorCorrectionLevel: 'M' }"
+                />
+              </div>
+              <p class="mt-3 text-sm text-gray-400">
+                Scan this code to RSVP to this event
+              </p>
+              <div class="mt-3 space-y-2">
+                <div class="flex items-center space-x-2">
+                  <input
+                    :value="rsvpQrCodeValue"
+                    readonly
+                    class="flex-1 px-3 py-2 text-sm bg-gray-700 border border-gray-600 rounded-lg text-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  <BaseButton
+                    variant="outline"
+                    size="sm"
+                    @click="copyQrLink('rsvp')"
+                    class="whitespace-nowrap"
+                  >
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                    </svg>
+                    Copy
+                  </BaseButton>
+                </div>
+              </div>
+              <BaseButton
+                variant="outline"
+                size="sm"
+                class="mt-3"
+                @click="downloadQRCode('rsvp')"
               >
                 Download QR Code
               </BaseButton>
@@ -955,6 +1006,7 @@ const allowTeamSwitching = ref(false)
 const syncLoading = ref(false)
 const createTeamLoading = ref(false)
 const qrCodeRef = ref<any>(null)
+const rsvpQrCodeRef = ref<any>(null)
 const eventTeams = ref<any[]>([])
 const wiretapWorkshops = ref<any[]>([])
 
@@ -1232,6 +1284,30 @@ const qrCodeValue = computed(() => {
   return `${window.location.origin}/checkin/${event.value.checkInCode}`
 })
 
+const rsvpQrCodeValue = computed(() => {
+  if (!event.value?.rsvpCode) return ''
+  return `${window.location.origin}/rsvp/${event.value.rsvpCode}`
+})
+
+// The check-in and RSVP QR cards are identical apart from which code they
+// encode, so the download/copy handlers below take the kind as an argument.
+const qrTargets = {
+  checkin: {
+    elRef: qrCodeRef,
+    get url() { return qrCodeValue.value },
+    slug: 'checkin',
+    label: 'Check-in'
+  },
+  rsvp: {
+    elRef: rsvpQrCodeRef,
+    get url() { return rsvpQrCodeValue.value },
+    slug: 'rsvp',
+    label: 'RSVP'
+  }
+}
+
+type QrKind = keyof typeof qrTargets
+
 // Teams computed properties
 
 // Teams methods
@@ -1497,8 +1573,10 @@ const removeTeamMember = async (teamId: string, email: string) => {
   }
 }
 
-const downloadQRCode = async () => {
-  if (!qrCodeValue.value) {
+const downloadQRCode = async (kind: QrKind) => {
+  const target = qrTargets[kind]
+
+  if (!target.url) {
     console.error('No QR code value available')
     return
   }
@@ -1508,13 +1586,13 @@ const downloadQRCode = async () => {
     await nextTick()
     
     // Get the image element from the displayed QR code component
-    if (!qrCodeRef.value) {
+    if (!target.elRef.value) {
       console.error('QR code component not found')
       return
     }
     
     // The QRCodeVue3 component renders an img element
-    const imgElement = qrCodeRef.value.$el?.querySelector('img')
+    const imgElement = target.elRef.value.$el?.querySelector('img')
     
     if (!imgElement) {
       console.error('QR code image not found')
@@ -1531,7 +1609,7 @@ const downloadQRCode = async () => {
 
     // Create download link directly from the image source
     const link = document.createElement('a')
-    link.download = `qr-code-${event.value?.title?.replace(/[^a-z0-9]/gi, '-').toLowerCase() || 'event'}.png`
+    link.download = `${target.slug}-qr-code-${event.value?.title?.replace(/[^a-z0-9]/gi, '-').toLowerCase() || 'event'}.png`
     link.href = imageSrc
     
     // Trigger download
@@ -1539,7 +1617,7 @@ const downloadQRCode = async () => {
     link.click()
     document.body.removeChild(link)
     
-    toast.success('QR code downloaded successfully!')
+    toast.success(`${target.label} QR code downloaded successfully!`)
     
   } catch (error) {
     console.error('Failed to download QR code:', error)
@@ -1547,25 +1625,27 @@ const downloadQRCode = async () => {
   }
 }
 
-const copyCheckInLink = async () => {
-  if (!qrCodeValue.value) {
-    console.error('No check-in link available')
+const copyQrLink = async (kind: QrKind) => {
+  const target = qrTargets[kind]
+
+  if (!target.url) {
+    console.error(`No ${target.label.toLowerCase()} link available`)
     return
   }
 
   try {
-    await navigator.clipboard.writeText(qrCodeValue.value)
-    toast.success('Check-in link copied to clipboard!')
+    await navigator.clipboard.writeText(target.url)
+    toast.success(`${target.label} link copied to clipboard!`)
   } catch (error) {
     console.error('Failed to copy to clipboard:', error)
     // Fallback for older browsers
     const textArea = document.createElement('textarea')
-    textArea.value = qrCodeValue.value
+    textArea.value = target.url
     document.body.appendChild(textArea)
     textArea.select()
     try {
       document.execCommand('copy')
-      toast.success('Check-in link copied to clipboard!')
+      toast.success(`${target.label} link copied to clipboard!`)
     } catch (fallbackError) {
       console.error('Fallback copy failed:', fallbackError)
       toast.error('Failed to copy link. Please copy manually.')

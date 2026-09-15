@@ -80,6 +80,15 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true }
   },
   {
+    // Public RSVP QR target. Marked `onboarding: true` so a prospective member
+    // who scans a flyer can RSVP immediately; the page then nudges them into
+    // the join flow rather than the guard bouncing them and losing the RSVP.
+    path: '/rsvp/:code',
+    name: 'PublicRSVP',
+    component: () => import('@/pages/rsvp/PublicRSVP.vue'),
+    meta: { requiresAuth: true, onboarding: true }
+  },
+  {
     path: '/',
     component: DefaultLayout,
     meta: { requiresAuth: true },

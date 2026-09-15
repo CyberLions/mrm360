@@ -53,8 +53,11 @@ export class EventManager {
     try {
       logger.info('Creating new event', { title: data.title, category: data.category });
       
-      // Generate a unique check-in code (8 characters)
+      // Generate unique check-in and RSVP codes (8 characters each). They are
+      // deliberately separate so the RSVP QR can be published ahead of the event
+      // without also handing out the door's check-in code.
       const checkInCode = randomBytes(4).toString('hex').toUpperCase();
+      const rsvpCode = randomBytes(4).toString('hex').toUpperCase();
       
       const event = await this.prisma.event.create({
         data: {
@@ -75,6 +78,7 @@ export class EventManager {
           autoAssignEnabled: data.autoAssignEnabled || false, // Default to false
           allowTeamSwitching: data.allowTeamSwitching || false, // Default to false
           checkInCode,
+          rsvpCode,
         },
         include: {
           linkedTeam: true,

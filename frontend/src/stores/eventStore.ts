@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import apiService from '@/services/api'
-import type { Event, EventCreate, EventUpdate, EventFilters, PaginatedResponse } from '@/types/api'
+import type { Event, EventCreate, EventUpdate, EventFilters, PaginatedResponse, PublicRsvpEvent } from '@/types/api'
 
 export const useEventStore = defineStore('events', () => {
   // State
@@ -105,6 +105,22 @@ export const useEventStore = defineStore('events', () => {
       currentEvent.value = event
       
       return event
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Failed to fetch event'
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  // Resolves the public RSVP code. Returns a trimmed event shape (no roster),
+  // so it deliberately does not populate `currentEvent`.
+  async function fetchEventByRsvpCode(rsvpCode: string): Promise<PublicRsvpEvent> {
+    try {
+      isLoading.value = true
+      error.value = null
+
+      return await apiService.getEventByRsvpCode(rsvpCode)
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to fetch event'
       throw err
@@ -380,6 +396,7 @@ export const useEventStore = defineStore('events', () => {
     fetchEvents,
     fetchEvent,
     fetchEventByCheckInCode,
+    fetchEventByRsvpCode,
     createEvent,
     updateEvent,
     deleteEvent,
