@@ -191,6 +191,7 @@ model Event {
   semester           String
   attendanceType     AttendanceType  @default(SOFT)
   checkInCode        String          @unique
+  rsvpCode           String          @unique
   attendanceCap      Int? // Maximum number of attendees (null = no cap)
   waitlistEnabled    Boolean         @default(false) // Whether to enable waitlist when cap is reached
   teamsEnabled       Boolean         @default(false) // Whether teams are enabled for this event

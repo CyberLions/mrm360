@@ -11,6 +11,7 @@ import type {
   Event,
   EventCreate,
   EventUpdate,
+  PublicRsvpEvent,
   Group,
   Task,
   DashboardStats,
@@ -206,6 +207,11 @@ class ApiService {
 
   async getEventByCheckInCode(checkInCode: string): Promise<Event> {
     const response = await this.api.get(`/events/checkin/${checkInCode}`)
+    return response.data.data
+  }
+
+  async getEventByRsvpCode(rsvpCode: string): Promise<PublicRsvpEvent> {
+    const response = await this.api.get(`/events/rsvp/${rsvpCode}`)
     return response.data.data
   }
 

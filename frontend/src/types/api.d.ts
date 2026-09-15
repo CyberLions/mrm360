@@ -273,6 +273,7 @@ export interface Event {
   autoAssignEnabled?: boolean
   allowTeamSwitching?: boolean
   checkInCode: string
+  rsvpCode: string
   rsvps: Array<{
     id: string
     userId: string
@@ -290,6 +291,21 @@ export interface Event {
   }>
   createdAt: string
   updatedAt: string
+}
+
+// Minimal event shape returned by GET /events/rsvp/{code}. Intentionally has no
+// attendee roster - the RSVP code is public. Capacity is reported as a count
+// plus flags the server derives, so the page never re-implements the rule.
+export interface PublicRsvpEvent
+  extends Pick<Event, 'id' | 'title' | 'startTime' | 'endTime' | 'category' | 'waitlistEnabled'> {
+  // The route returns null (not undefined) where Event has these optional.
+  description?: string | null
+  attendanceCap?: number | null
+  linkedTeam?: Pick<Team, 'id' | 'name'> | null
+  confirmedCount: number
+  isFull: boolean
+  willWaitlist: boolean
+  myRsvpStatus: Event['rsvps'][number]['status'] | null
 }
 
 export interface EventCreate {
