@@ -583,6 +583,20 @@ export class EventManager {
         return { success: false, message: 'Event not found' };
       }
 
+      // Return duplicates before any RSVP or capacity changes.
+      const existingCheckIn = await this.prisma.checkIn.findUnique({
+        where: {
+          userId_eventId: {
+            userId: user.id,
+            eventId: data.eventId,
+          },
+        },
+      });
+
+      if (existingCheckIn) {
+        return { success: false, message: 'User already checked in' };
+      }
+
       // Check if user is RSVP'd, auto-RSVP if not (but respect capacity and eligibility)
       let rsvp = await this.prisma.rSVP.findUnique({
         where: {
@@ -695,15 +709,23 @@ export class EventManager {
         logger.info('RSVP updated to CONFIRMED for QR check-in', { userId: user.id, eventId: data.eventId, previousStatus: rsvp.status });
       }
 
-      // Create check-in record
-      await this.prisma.checkIn.create({
-        data: {
-          userId: user.id,
-          eventId: data.eventId,
-          qrCode: data.qrCode,
-          checkedInAt: new Date(),
-        },
-      });
+      // Create check-in record. The pre-check makes sequential scans idempotent;
+      // P2002 covers a second scan racing this request after that pre-check.
+      try {
+        await this.prisma.checkIn.create({
+          data: {
+            userId: user.id,
+            eventId: data.eventId,
+            qrCode: data.qrCode,
+            checkedInAt: new Date(),
+          },
+        });
+      } catch (error) {
+        if ((error as { code?: string })?.code === 'P2002') {
+          return { success: false, message: 'User already checked in' };
+        }
+        throw error;
+      }
 
       // Trigger auto-assignment if enabled and user is confirmed
       if (rsvp.status === 'CONFIRMED' && event.autoAssignEnabled && event.teamsEnabled && event.membersPerTeam) {
