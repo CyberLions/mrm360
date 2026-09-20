@@ -39,18 +39,30 @@ export interface UserPaymentStatus {
   nextExpiration?: string
 }
 
-export interface InventoryBin { id: string; name: string; room?: string; code?: string; description?: string; _count?: { items: number } }
+export interface InventoryBin { id: string; name: string; room?: string; shelf?: string; code?: string; description?: string; _count?: { items: number } }
+export interface InventoryCategory { id: string; name: string; description?: string; _count?: { items: number } }
 export interface InventoryItem {
   id: string
   barcode: string
   name: string
   binId?: string
   bin?: InventoryBin
+  categoryId?: string
+  category?: InventoryCategory
+  lostAt?: string | null
+  lostNote?: string | null
   checkedOutToId?: string
   checkedOutTo?: { id: string; email?: string; firstName: string; lastName: string; displayName?: string }
   loans?: Array<{ checkedOutAt: string; checkedInAt?: string }>
   createdAt?: string
   updatedAt?: string
+}
+export interface InventoryLabelTemplate { id: string; name: string; description: string; widthIn: number; heightIn: number; dpi: number }
+export interface InventoryLabelJobStatus {
+  jobId: string
+  state: 'queued' | 'processing' | 'completed' | 'failed'
+  progress: { done: number; total: number }
+  error?: string
 }
 export interface ItemLoan {
   id: string

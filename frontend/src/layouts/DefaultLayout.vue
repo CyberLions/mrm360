@@ -330,9 +330,12 @@
               <template v-if="authStore.isAdmin || authStore.isExecBoard">
                 <router-link to="/inventory/items" :class="sidebarLinkClass('/inventory/items')"><QueueListIcon class="mr-3 h-5 w-5" />All items</router-link>
                 <router-link to="/inventory/bins" :class="sidebarLinkClass('/inventory/bins', true)"><ArchiveBoxIcon class="mr-3 h-5 w-5" />Bins & locations</router-link>
+                <router-link to="/inventory/categories" :class="sidebarLinkClass('/inventory/categories', true)"><TagIcon class="mr-3 h-5 w-5" />Categories</router-link>
+                <router-link to="/inventory/labels" :class="sidebarLinkClass('/inventory/labels', true)"><PrinterIcon class="mr-3 h-5 w-5" />Print labels</router-link>
                 <router-link to="/inventory?action=add-item" :class="sidebarActionClass('add-item')"><PlusIcon class="mr-3 h-5 w-5" />Add item</router-link>
                 <router-link to="/inventory?action=bulk" :class="sidebarActionClass('bulk')"><QueueListIcon class="mr-3 h-5 w-5" />Bulk add items</router-link>
                 <router-link to="/inventory?action=add-bin" :class="sidebarActionClass('add-bin')"><PlusIcon class="mr-3 h-5 w-5" />Create bin</router-link>
+                <router-link to="/inventory?action=add-category" :class="sidebarActionClass('add-category')"><PlusIcon class="mr-3 h-5 w-5" />Create category</router-link>
               </template>
             </div>
 
@@ -410,8 +413,10 @@ import {
   ChevronRightIcon,
   PlusIcon,
   ArchiveBoxIcon,
+  PrinterIcon,
   QueueListIcon,
-  QrCodeIcon
+  QrCodeIcon,
+  TagIcon
 } from '@heroicons/vue/24/outline'
 
 const router = useRouter()

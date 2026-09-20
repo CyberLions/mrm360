@@ -19,7 +19,8 @@ export const QUEUE_NAMES = {
   AUTHENTIK: 'authentik',
   PAYMENT_STATUS: 'payment-status',
   WIRETAP: 'wiretap',
-  BADGE_CHECK: 'badge-check'
+  BADGE_CHECK: 'badge-check',
+  INVENTORY_LABELS: 'inventory-labels'
 } as const;
 
 // Create queues
@@ -140,6 +141,14 @@ export const badgeCheckQueue = new Queue(QUEUE_NAMES.BADGE_CHECK, {
   }
 });
 
+// Label PDFs are deterministic, so a retry would just fail the same way.
+export const inventoryLabelQueue = new Queue(QUEUE_NAMES.INVENTORY_LABELS, {
+  connection: redis,
+  defaultJobOptions: {
+    attempts: 1
+  }
+});
+
 // Note: Not using QueueScheduler due to BullMQ version constraints
 // Note: BullMQ event handlers may need to be configured differently
 // For now, we'll log queue status through other means
@@ -198,6 +207,8 @@ function getQueueByName(queueName: keyof typeof QUEUE_NAMES) {
       return wiretapQueue;
     case 'BADGE_CHECK':
       return badgeCheckQueue;
+    case 'INVENTORY_LABELS':
+      return inventoryLabelQueue;
     default:
       return null;
   }
@@ -216,6 +227,7 @@ export async function closeQueues() {
   await paymentStatusQueue.close();
   await wiretapQueue.close();
   await badgeCheckQueue.close();
+  await inventoryLabelQueue.close();
   await redis.quit();
   logger.info('All queues closed');
 }
@@ -237,7 +249,8 @@ export async function getQueueHealth() {
         authentik: await authentikQueue.getJobCounts(),
         paymentStatus: await paymentStatusQueue.getJobCounts(),
         wiretap: await wiretapQueue.getJobCounts(),
-        badgeCheck: await badgeCheckQueue.getJobCounts()
+        badgeCheck: await badgeCheckQueue.getJobCounts(),
+        inventoryLabels: await inventoryLabelQueue.getJobCounts()
       }
     };
   } catch (error) {

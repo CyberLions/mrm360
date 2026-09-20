@@ -691,15 +691,39 @@ export class EventManager {
         logger.info('RSVP updated to CONFIRMED for QR check-in', { userId: user.id, eventId: data.eventId, previousStatus: rsvp.status });
       }
 
-      // Create check-in record
-      await this.prisma.checkIn.create({
-        data: {
-          userId: user.id,
-          eventId: data.eventId,
-          qrCode: data.qrCode,
-          checkedInAt: new Date(),
+      // Create check-in record (idempotent - rescanning an already-checked-in QR
+      // should report success rather than blow up on the unique constraint)
+      const existingCheckIn = await this.prisma.checkIn.findUnique({
+        where: {
+          userId_eventId: {
+            userId: user.id,
+            eventId: data.eventId,
+          },
         },
       });
+
+      if (existingCheckIn) {
+        logger.info('User already checked in - returning idempotent success', { userId: user.id, eventId: data.eventId });
+        return { success: true, message: 'Already checked in', user };
+      }
+
+      try {
+        await this.prisma.checkIn.create({
+          data: {
+            userId: user.id,
+            eventId: data.eventId,
+            qrCode: data.qrCode,
+            checkedInAt: new Date(),
+          },
+        });
+      } catch (error: any) {
+        if (error?.code === 'P2002') {
+          // Lost a race with a concurrent scan of the same QR code
+          logger.info('Concurrent check-in detected - returning idempotent success', { userId: user.id, eventId: data.eventId });
+          return { success: true, message: 'Already checked in', user };
+        }
+        throw error;
+      }
 
       // Trigger auto-assignment if enabled and user is confirmed
       if (rsvp.status === 'CONFIRMED' && event.autoAssignEnabled && event.teamsEnabled && event.membersPerTeam) {

@@ -192,7 +192,7 @@ describe('emailTemplates', () => {
     it('produce valid HTML documents', () => {
       const templateNames = Object.keys(emailTemplates) as Array<keyof typeof emailTemplates>;
       for (const name of templateNames) {
-        const data = name === 'itemCheckedOut' || name === 'itemCheckedIn' ? inventoryData : baseData;
+        const data = name === 'itemCheckedOut' || name === 'itemCheckedIn' || name === 'itemReportedLost' ? inventoryData : baseData;
         const { html } = emailTemplates[name](data);
         expect(html).toContain('<!DOCTYPE html>');
         expect(html).toContain('</html>');
@@ -201,7 +201,7 @@ describe('emailTemplates', () => {
 
     it('all include event details block', () => {
       const templateNames = Object.keys(emailTemplates).filter(
-        name => name !== 'itemCheckedOut' && name !== 'itemCheckedIn'
+        name => name !== 'itemCheckedOut' && name !== 'itemCheckedIn' && name !== 'itemReportedLost'
       ) as Array<keyof typeof emailTemplates>;
       for (const name of templateNames) {
         const { html } = emailTemplates[name](baseData);

@@ -22,6 +22,7 @@ import { processAuthentikJob, processAuthentikJobFailed } from './workers/authen
 import { processPaymentStatusJob, processPaymentStatusJobFailed } from './workers/paymentStatusWorker';
 import { processWiretapJob, processWiretapJobFailed } from './workers/wiretapWorker';
 import { processBadgeCheckJob, processBadgeCheckJobFailed } from './workers/badgeCheckWorker';
+import { processInventoryLabelJob, processInventoryLabelJobFailed } from './workers/inventoryLabelWorker';
 
 // Import Redis connection from queue file
 import Redis from 'ioredis';
@@ -119,6 +120,13 @@ const wiretapWorker = new Worker(QUEUE_NAMES.WIRETAP, processWiretapJob, {
 const badgeCheckWorker = new Worker(QUEUE_NAMES.BADGE_CHECK, processBadgeCheckJob, {
   connection: redis,
   concurrency: 3,
+  removeOnComplete: { count: 100 },
+  removeOnFail: { count: 50 }
+});
+
+const inventoryLabelWorker = new Worker(QUEUE_NAMES.INVENTORY_LABELS, processInventoryLabelJob, {
+  connection: redis,
+  concurrency: 2, // Rendering is CPU-bound; keep it from starving the other queues
   removeOnComplete: { count: 100 },
   removeOnFail: { count: 50 }
 });
@@ -267,6 +275,19 @@ badgeCheckWorker.on('failed', (job, err) => {
   }
 });
 
+inventoryLabelWorker.on('completed', (job) => {
+  if (job) {
+    logger.info(`Inventory label worker completed job ${job.id}`);
+  }
+});
+
+inventoryLabelWorker.on('failed', (job, err) => {
+  if (job) {
+    logger.error(`Inventory label worker failed job ${job.id}:`, err);
+    processInventoryLabelJobFailed(job, err);
+  }
+});
+
 // Graceful shutdown
 async function gracefulShutdown() {
   logger.info('Shutting down workers gracefully...');
@@ -282,6 +303,7 @@ async function gracefulShutdown() {
   await paymentStatusWorker.close();
   await wiretapWorker.close();
   await badgeCheckWorker.close();
+  await inventoryLabelWorker.close();
 
   // Shutdown Discord bot
   await shutdownDiscordBot();
@@ -326,6 +348,7 @@ async function initializeWorkers() {
     logger.info(`Payment Status worker: ${QUEUE_NAMES.PAYMENT_STATUS}`);
     logger.info(`Wiretap worker: ${QUEUE_NAMES.WIRETAP}`);
     logger.info(`Badge Check worker: ${QUEUE_NAMES.BADGE_CHECK}`);
+    logger.info(`Inventory Label worker: ${QUEUE_NAMES.INVENTORY_LABELS}`);
   } catch (error) {
     logger.error('Failed to initialize workers:', error);
     process.exit(1);

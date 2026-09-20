@@ -54,7 +54,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     if (!user) return res.status(404).json({ error: 'Member QR code not found' })
     const checkedOutAt = new Date()
     await prisma.$transaction([
-      prisma.inventoryItem.update({ where: { id: item.id }, data: { checkedOutToId: user.id, binId: null } }),
+      prisma.inventoryItem.update({ where: { id: item.id }, data: { checkedOutToId: user.id, binId: null, lostAt: null, lostNote: null } }),
       prisma.itemLoan.create({ data: { itemId: item.id, userId: user.id, checkedOutAt, note: note || null } })
     ])
     await sendItemCheckedOutEmail(user, item, checkedOutAt)
@@ -65,7 +65,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   const checkedInAt = new Date()
   const returnBin = binId ? await prisma.inventoryBin.findUnique({ where: { id: binId } }) : null
   await prisma.$transaction([
-    prisma.inventoryItem.update({ where: { id: item.id }, data: { checkedOutToId: null, binId: binId !== undefined ? binId : item.binId } }),
+    prisma.inventoryItem.update({ where: { id: item.id }, data: { checkedOutToId: null, binId: binId !== undefined ? binId : item.binId, lostAt: null, lostNote: null } }),
     prisma.itemLoan.updateMany({
       where: { itemId: item.id, checkedInAt: null },
       data: { checkedInAt, returnBinId: binId, ...(note ? { note } : {}) }

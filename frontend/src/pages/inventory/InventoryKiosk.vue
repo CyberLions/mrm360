@@ -110,6 +110,19 @@
               </option>
             </select>
           </div>
+          <div>
+            <label class="label">Category</label
+            ><select v-model="categoryId" class="field">
+              <option value="">No category</option>
+              <option
+                v-for="category in categories"
+                :key="category.id"
+                :value="category.id"
+              >
+                {{ category.name }}
+              </option>
+            </select>
+          </div>
         </div>
         <div>
           <label class="label"
@@ -212,6 +225,19 @@
               </option>
             </select>
           </div>
+          <div>
+            <label class="label">Category</label
+            ><select v-model="categoryId" class="field">
+              <option value="">No category</option>
+              <option
+                v-for="category in categories"
+                :key="category.id"
+                :value="category.id"
+              >
+                {{ category.name }}
+              </option>
+            </select>
+          </div>
           <button
             type="button"
             @click="generateBarcode"
@@ -290,7 +316,12 @@ import {
   SparklesIcon,
   UserIcon,
 } from "@heroicons/vue/24/outline";
-import type { Event, InventoryBin, InventoryItem } from "@/types/api";
+import type {
+  Event,
+  InventoryBin,
+  InventoryCategory,
+  InventoryItem,
+} from "@/types/api";
 type Mode = "self-checkout" | "bulk-checkout" | "checkin" | "quick-add";
 const tabs: { id: Mode; label: string; icon: any }[] = [
   { id: "self-checkout", label: "Self checkout", icon: UserIcon },
@@ -311,12 +342,14 @@ const mode = ref<Mode>("self-checkout"),
   barcode = ref(""),
   name = ref(""),
   binId = ref(""),
+  categoryId = ref(""),
   eventId = ref(""),
   note = ref(""),
   message = ref(""),
   failed = ref(false),
   submitting = ref(false),
   bins = ref<InventoryBin[]>([]),
+  categories = ref<InventoryCategory[]>([]),
   inventoryItems = ref<InventoryItem[]>([]),
   names = ref<string[]>([]),
   recentEvents = ref<Event[]>([]),
@@ -341,8 +374,12 @@ const suggestedItems = computed(() =>
     ? inventoryItems.value.filter((item) => item.checkedOutToId)
     : inventoryItems.value.filter((item) => !item.checkedOutToId),
 );
-const binLabel = (bin: InventoryBin) =>
-  `${bin.room ? `${bin.room} · ` : ""}${bin.name}`;
+const binLabel = (bin: InventoryBin) => {
+  const parts = [bin.room, bin.shelf ? `Shelf ${bin.shelf}` : ""].filter(
+    Boolean,
+  );
+  return parts.length ? `${parts.join(" · ")} · ${bin.name}` : bin.name;
+};
 function focusBarcode() {
   barcodeInput.value?.focus();
 }
@@ -356,6 +393,7 @@ function reset() {
     barcode.value =
     name.value =
     binId.value =
+    categoryId.value =
     message.value =
       "";
   memberResults.value = [];
@@ -442,6 +480,7 @@ async function submit() {
           name: name.value,
           barcode: barcode.value,
           binId: binId.value || null,
+          categoryId: categoryId.value || null,
         },
       ]);
       message.value = `${name.value} created`;
@@ -493,6 +532,7 @@ function formatEventDate(value: string) {
 onMounted(async () => {
   const d = await apiService.getInventory();
   bins.value = d.bins;
+  categories.value = d.categories;
   inventoryItems.value = d.items;
   names.value = [...new Set(d.items.map((i) => i.name))];
   if (isManager.value) {

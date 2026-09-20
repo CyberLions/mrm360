@@ -74,6 +74,14 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, onboarding: true }
   },
   {
+    // Public on purpose: the QR on every inventory label points here, so anyone who
+    // finds a lost item can report it without an account.
+    path: '/lost',
+    name: 'ReportLostItem',
+    component: () => import('@/pages/inventory/ReportLostItem.vue'),
+    meta: { title: 'Report a lost item', public: true }
+  },
+  {
     path: '/checkin/:code',
     name: 'PublicCheckIn',
     component: () => import('@/pages/checkin/PublicCheckIn.vue'),
@@ -284,6 +292,18 @@ const routes: RouteRecordRaw[] = [
         name: 'InventoryBins',
         component: () => import('@/pages/inventory/InventoryBins.vue'),
         meta: { title: 'Bins and Locations', requiresExecBoard: true }
+      },
+      {
+        path: 'inventory/labels',
+        name: 'InventoryLabels',
+        component: () => import('@/pages/inventory/InventoryLabels.vue'),
+        meta: { title: 'Print Labels', requiresExecBoard: true }
+      },
+      {
+        path: 'inventory/categories',
+        name: 'InventoryCategories',
+        component: () => import('@/pages/inventory/InventoryCategories.vue'),
+        meta: { title: 'Categories', requiresExecBoard: true }
       }
     ]
   },
@@ -352,7 +372,7 @@ router.beforeEach(async (to, from, next) => {
   // it's complete they get the dashboard as normal. The onboarding pages
   // themselves are exempt so the flow can be completed, and anonymous users are
   // already handled above (straight to the Authentik login).
-  if (authStore.isAuthenticated && !to.meta.onboarding && !authStore.hasCompletedOnboarding) {
+  if (authStore.isAuthenticated && !to.meta.onboarding && !to.meta.public && !authStore.hasCompletedOnboarding) {
     next('/join')
     return
   }

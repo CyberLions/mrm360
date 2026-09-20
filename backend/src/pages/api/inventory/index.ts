@@ -9,7 +9,9 @@ const itemSchema = z.object({
   name: z.string().trim().min(1),
   binId: z.string().nullable().optional(),
   binName: z.string().trim().min(1).optional(),
-  room: z.string().trim().optional()
+  room: z.string().trim().optional(),
+  categoryId: z.string().nullable().optional(),
+  categoryName: z.string().trim().min(1).optional()
 })
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
@@ -17,19 +19,21 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 
   if (req.method === 'GET') {
     const where = isManager ? {} : { checkedOutToId: req.user.id }
-    const [items, bins] = await Promise.all([
+    const [items, bins, categories] = await Promise.all([
       prisma.inventoryItem.findMany({
         where,
         include: {
           bin: true,
+          category: true,
           checkedOutTo: { select: { id: true, email: true, firstName: true, lastName: true, displayName: true } },
           loans: { select: { checkedOutAt: true, checkedInAt: true }, orderBy: { checkedOutAt: 'desc' }, take: 1 }
         },
         orderBy: [{ name: 'asc' }, { barcode: 'asc' }]
       }),
-      isManager ? prisma.inventoryBin.findMany({ orderBy: [{ room: 'asc' }, { name: 'asc' }] }) : Promise.resolve([])
+      isManager ? prisma.inventoryBin.findMany({ orderBy: [{ room: 'asc' }, { name: 'asc' }] }) : Promise.resolve([]),
+      isManager ? prisma.inventoryCategory.findMany({ orderBy: { name: 'asc' } }) : Promise.resolve([])
     ])
-    return res.status(200).json({ items, bins, canManage: isManager })
+    return res.status(200).json({ items, bins, categories, canManage: isManager })
   }
 
   if (req.method === 'POST') {
@@ -41,14 +45,20 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
       const items = await prisma.$transaction(async tx => {
         const created = []
         for (const input of parsed.data.items) {
-          const { binName, room, ...item } = input
+          const { binName, room, categoryName, ...item } = input
           let binId = item.binId
           if (!binId && binName) {
             let bin = await tx.inventoryBin.findFirst({ where: { name: { equals: binName, mode: 'insensitive' }, ...(room ? { room: { equals: room, mode: 'insensitive' } } : {}) } })
             bin ||= await tx.inventoryBin.create({ data: { name: binName, room: room || null } })
             binId = bin.id
           }
-          created.push(await tx.inventoryItem.create({ data: { barcode: item.barcode, name: item.name, binId }, include: { bin: true } }))
+          let categoryId = item.categoryId
+          if (!categoryId && categoryName) {
+            let category = await tx.inventoryCategory.findFirst({ where: { name: { equals: categoryName, mode: 'insensitive' } } })
+            category ||= await tx.inventoryCategory.create({ data: { name: categoryName } })
+            categoryId = category.id
+          }
+          created.push(await tx.inventoryItem.create({ data: { barcode: item.barcode, name: item.name, binId, categoryId }, include: { bin: true, category: true } }))
         }
         return created
       })

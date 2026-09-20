@@ -368,6 +368,7 @@ model InventoryBin {
   id          String          @id @default(cuid())
   name        String
   room        String?
+  shelf       String?
   code        String?
   description String?
   createdAt   DateTime        @default(now())
@@ -378,20 +379,36 @@ model InventoryBin {
   @@map("inventory_bins")
 }
 
+model InventoryCategory {
+  id          String          @id @default(cuid())
+  name        String          @unique
+  description String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  items       InventoryItem[]
+
+  @@map("inventory_categories")
+}
+
 model InventoryItem {
-  id             String        @id @default(cuid())
-  barcode        String        @unique
+  id             String             @id @default(cuid())
+  barcode        String             @unique
   name           String
   binId          String?
+  categoryId     String?
   checkedOutToId String?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  bin            InventoryBin? @relation(fields: [binId], references: [id], onDelete: SetNull)
-  checkedOutTo   User?         @relation(fields: [checkedOutToId], references: [id], onDelete: SetNull)
+  lostAt         DateTime?
+  lostNote       String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  bin            InventoryBin?      @relation(fields: [binId], references: [id], onDelete: SetNull)
+  category       InventoryCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  checkedOutTo   User?              @relation(fields: [checkedOutToId], references: [id], onDelete: SetNull)
   loans          ItemLoan[]
 
   @@index([name])
   @@index([binId])
+  @@index([categoryId])
   @@index([checkedOutToId])
   @@map("inventory_items")
 }
