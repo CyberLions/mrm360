@@ -607,7 +607,10 @@ async function saveCategory() {
 }
 async function generateBarcode() {
   try {
-    draft.barcode = await apiService.generateInventoryBarcode();
+    draft.barcode = await apiService.generateInventoryBarcode({
+      name: draft.name,
+      categoryId: draft.categoryId || null,
+    });
   } catch (e: any) {
     error.value = e.response?.data?.error || "Could not generate barcode";
   }

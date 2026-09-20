@@ -374,8 +374,9 @@ class ApiService {
     return (await this.api.get('/inventory/history', { params: userId ? { userId } : undefined })).data
   }
 
-  async generateInventoryBarcode(): Promise<string> {
-    return (await this.api.post('/inventory/generate-barcode')).data.barcode
+  // The name and category are folded into the code (e.g. APP-POL-K7M) so it stays short and readable.
+  async generateInventoryBarcode(parts: { name?: string; categoryId?: string | null } = {}): Promise<string> {
+    return (await this.api.post('/inventory/generate-barcode', parts)).data.barcode
   }
 
   // Public: sent with plain axios so the interceptors don't force a login for anonymous visitors.

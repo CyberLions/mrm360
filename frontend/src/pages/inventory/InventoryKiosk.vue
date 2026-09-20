@@ -458,7 +458,10 @@ async function itemScanned(value: string) {
 }
 async function generateBarcode() {
   try {
-    barcode.value = await apiService.generateInventoryBarcode();
+    barcode.value = await apiService.generateInventoryBarcode({
+      name: name.value,
+      categoryId: categoryId.value || null,
+    });
   } catch (e: any) {
     showError(e);
   }
