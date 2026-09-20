@@ -376,10 +376,40 @@
       </div>
     </div>
   </Teleport>
+  <!-- QR Code Modal (opened via ?qr URL arg) -->
+  <Teleport to="body">
+    <div v-if="showQRModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/80" @click="closeQRModal" />
+      <div class="relative bg-gray-800 border border-gray-600 rounded-2xl shadow-2xl p-6 w-full max-w-2xl">
+        <div class="flex items-start justify-between mb-4">
+          <h2 class="text-xl font-bold text-gray-100">Profile QR Code</h2>
+          <button @click="closeQRModal" class="text-gray-400 hover:text-gray-200 ml-4" aria-label="Close">
+            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="bg-white p-4 rounded-lg mx-auto w-full max-w-[min(90vw,60vh)] [&_canvas]:!w-full [&_canvas]:!h-auto [&_img]:!w-full [&_img]:!h-auto">
+          <QRCodeVue3
+            v-if="qrCodeValue"
+            :value="qrCodeValue"
+            :width="500"
+            :height="500"
+            :qr-options="{ errorCorrectionLevel: 'M' }"
+          />
+          <div v-else class="aspect-square flex items-center justify-center text-gray-400">
+            Loading QR code...
+          </div>
+        </div>
+        <p class="mt-4 text-sm text-gray-400 text-center">Scan this code to check in at events</p>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import QRCodeVue3 from 'qrcode-vue3'
 import type { User } from '@/types/api'
@@ -388,6 +418,8 @@ import PaymentHistoryList from '@/components/payments/PaymentHistoryList.vue'
 import ItemCheckoutHistory from '@/components/inventory/ItemCheckoutHistory.vue'
 
 const authStore = useAuthStore()
+const route = useRoute()
+const router = useRouter()
 const toast = useToast()
 
 // State
@@ -407,6 +439,16 @@ const isUpdatingInterests = ref(false)
 const isUpdatingNewsletter = ref(false)
 const isRequestingMemberVPN = ref(false)
 const isRequestingAdminVPN = ref(false)
+
+// QR code modal — opened on load when the URL has a `qr` arg (e.g. /profile?qr)
+const showQRModal = ref(route.query.qr !== undefined && route.query.qr !== 'false' && route.query.qr !== '0')
+
+const closeQRModal = () => {
+  showQRModal.value = false
+  // Remove the arg so a refresh doesn't reopen it
+  const { qr: _qr, ...rest } = route.query
+  router.replace({ query: rest })
+}
 
 // VPN enrollment modal
 const showVPNModal = ref(false)

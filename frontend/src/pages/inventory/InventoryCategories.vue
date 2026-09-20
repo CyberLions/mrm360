@@ -2,12 +2,12 @@
   <div class="space-y-6">
     <div class="sm:flex sm:items-center sm:justify-between">
       <div>
-        <h1 class="text-2xl font-bold text-gray-100">Bins & Locations</h1>
+        <h1 class="text-2xl font-bold text-gray-100">Categories</h1>
         <p class="mt-2 text-sm text-gray-400">
-          A list of inventory bins, lockers, rooms, codes, and location notes.
+          Group inventory items by type, e.g. GBM Equipment, Travel Equipment, Apparel.
         </p>
       </div>
-      <BaseButton class="mt-4 sm:mt-0" @click="edit()">Create Bin</BaseButton>
+      <BaseButton class="mt-4 sm:mt-0" @click="edit()">Create Category</BaseButton>
     </div>
     <div
       class="bg-gray-800/50 backdrop-blur-sm shadow-xl rounded-xl p-6 border border-gray-700/50"
@@ -36,34 +36,8 @@
           ><input
             v-model="filters.search"
             class="w-full px-4 py-2.5 bg-gray-700/50 border border-gray-600/50 rounded-lg text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all duration-200"
-            placeholder="Search bins and descriptions..."
+            placeholder="Search categories..."
           />
-        </div>
-        <div class="space-y-2">
-          <label class="flex items-center text-sm font-medium text-gray-300"
-            >Room</label
-          ><select
-            v-model="filters.room"
-            class="w-full px-4 py-2.5 bg-gray-700/50 border border-gray-600/50 rounded-lg text-gray-100 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all duration-200"
-          >
-            <option value="">All Rooms</option>
-            <option value="none">No Room</option>
-            <option v-for="room in rooms" :key="room" :value="room">
-              {{ room }}
-            </option>
-          </select>
-        </div>
-        <div class="space-y-2">
-          <label class="flex items-center text-sm font-medium text-gray-300"
-            >Locker Code</label
-          ><select
-            v-model="filters.hasCode"
-            class="w-full px-4 py-2.5 bg-gray-700/50 border border-gray-600/50 rounded-lg text-gray-100 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all duration-200"
-          >
-            <option value="">All Bins</option>
-            <option value="yes">Has Code</option>
-            <option value="no">No Code</option>
-          </select>
         </div>
         <div class="space-y-2">
           <label class="flex items-center text-sm font-medium text-gray-300"
@@ -98,15 +72,7 @@
           <thead class="bg-gray-700">
             <tr>
               <th
-                v-for="heading in [
-                  'Name',
-                  'Room',
-                  'Shelf',
-                  'Code',
-                  'Description',
-                  'Items',
-                  'Actions',
-                ]"
+                v-for="heading in ['Name', 'Description', 'Items', 'Actions']"
                 :key="heading"
                 class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-300"
               >
@@ -116,47 +82,35 @@
           </thead>
           <tbody class="divide-y divide-gray-700 bg-gray-800">
             <tr
-              v-for="bin in pageBins"
-              :key="bin.id"
+              v-for="category in pageCategories"
+              :key="category.id"
               class="transition-colors hover:bg-gray-700"
             >
               <td
                 class="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-100"
               >
-                {{ bin.name }}
-              </td>
-              <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-300">
-                {{ bin.room || "—" }}
-              </td>
-              <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-300">
-                {{ bin.shelf || "—" }}
-              </td>
-              <td class="whitespace-nowrap px-6 py-4 text-sm">
-                <code v-if="bin.code" class="text-amber-300">{{
-                  bin.code
-                }}</code
-                ><span v-else class="text-gray-400">—</span>
+                {{ category.name }}
               </td>
               <td
                 class="max-w-md whitespace-normal px-6 py-4 text-sm text-gray-400"
               >
-                {{ bin.description || "—" }}
+                {{ category.description || "—" }}
               </td>
               <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-300">
-                {{ bin._count?.items || 0 }}
+                {{ category._count?.items || 0 }}
               </td>
               <td class="whitespace-nowrap px-6 py-4 text-sm">
                 <div class="flex gap-2">
                   <IconButton
                     :icon="PencilSquareIcon"
-                    label="Edit bin"
-                    @click="edit(bin)"
+                    label="Edit category"
+                    @click="edit(category)"
                   />
                   <IconButton
                     :icon="TrashIcon"
-                    label="Delete bin"
+                    label="Delete category"
                     variant="danger"
-                    @click="remove(bin)"
+                    @click="remove(category)"
                   />
                 </div>
               </td>
@@ -164,11 +118,11 @@
           </tbody>
         </table>
       </div>
-      <div v-if="!pageBins.length" class="py-12 text-center">
-        <ArchiveBoxIcon class="mx-auto h-12 w-12 text-gray-500" />
-        <h3 class="mt-2 font-medium text-gray-100">No bins found</h3>
+      <div v-if="!pageCategories.length" class="py-12 text-center">
+        <TagIcon class="mx-auto h-12 w-12 text-gray-500" />
+        <h3 class="mt-2 font-medium text-gray-100">No categories found</h3>
         <p class="text-sm text-gray-400">
-          Try adjusting your search or filters.
+          Try adjusting your search, or create your first category.
         </p>
       </div>
       <PaginationBar
@@ -190,31 +144,21 @@
         @submit.prevent="save"
       >
         <h2 class="text-xl font-semibold text-white">
-          {{ draft.id ? "Edit" : "Create" }} bin
+          {{ draft.id ? "Edit" : "Create" }} category
         </h2>
         <input
           v-model="draft.name"
           required
+          autofocus
           class="filter-input"
-          placeholder="Name"
-        /><input
-          v-model="draft.room"
-          class="filter-input"
-          placeholder="Room"
-        /><input
-          v-model="draft.shelf"
-          class="filter-input"
-          placeholder="Shelf"
-        /><input
-          v-model="draft.code"
-          class="filter-input"
-          placeholder="Locker code"
+          placeholder="Name, e.g. GBM Equipment"
         /><textarea
           v-model="draft.description"
           class="filter-input"
           rows="4"
-          placeholder="Description or location notes"
+          placeholder="Description (optional)"
         ></textarea>
+        <div v-if="error" class="text-sm text-red-300">{{ error }}</div>
         <div class="flex justify-end gap-2">
           <BaseButton type="button" variant="secondary" @click="show = false"
             >Cancel</BaseButton
@@ -231,97 +175,76 @@ import BaseButton from "@/components/common/BaseButton.vue";
 import IconButton from "@/components/common/IconButton.vue";
 import PaginationBar from "@/components/inventory/PaginationBar.vue";
 import {
-  ArchiveBoxIcon,
   FunnelIcon,
   MagnifyingGlassIcon,
   PencilSquareIcon,
+  TagIcon,
   TrashIcon,
   XMarkIcon,
 } from "@heroicons/vue/24/outline";
-import type { InventoryBin } from "@/types/api";
-const bins = ref<InventoryBin[]>([]),
+import type { InventoryCategory } from "@/types/api";
+const categories = ref<InventoryCategory[]>([]),
   loading = ref(true),
   show = ref(false),
   error = ref(""),
   page = ref(1),
   pageSize = ref(25),
-  filters = reactive({ search: "", room: "", hasCode: "" }),
-  draft = reactive({ id: "", name: "", room: "", shelf: "", code: "", description: "" });
-const rooms = computed(() =>
-  [
-    ...new Set(bins.value.map((b) => b.room).filter((v): v is string => !!v)),
-  ].sort(),
-);
+  filters = reactive({ search: "" }),
+  draft = reactive({ id: "", name: "", description: "" });
 const filtered = computed(() => {
     const q = filters.search.toLowerCase();
-    return bins.value.filter(
-      (b) =>
-        (!q ||
-          [b.name, b.room, b.shelf, b.description, b.code].some((v) =>
-            v?.toLowerCase().includes(q),
-          )) &&
-        (!filters.room ||
-          (filters.room === "none" ? !b.room : b.room === filters.room)) &&
-        (!filters.hasCode || (filters.hasCode === "yes" ? !!b.code : !b.code)),
+    return categories.value.filter(
+      (c) =>
+        !q ||
+        [c.name, c.description].some((v) => v?.toLowerCase().includes(q)),
     );
   }),
   totalPages = computed(() =>
     Math.ceil(filtered.value.length / pageSize.value),
   ),
   start = computed(() => (page.value - 1) * pageSize.value),
-  pageBins = computed(() =>
+  pageCategories = computed(() =>
     filtered.value.slice(start.value, start.value + pageSize.value),
   );
 async function load() {
   loading.value = true;
-  bins.value = await apiService.getInventoryBins();
+  categories.value = await apiService.getInventoryCategories();
   loading.value = false;
 }
 function clearFilters() {
-  Object.assign(filters, { search: "", room: "", hasCode: "" });
+  Object.assign(filters, { search: "" });
 }
-function edit(bin?: InventoryBin) {
+function edit(category?: InventoryCategory) {
   Object.assign(draft, {
-    id: bin?.id || "",
-    name: bin?.name || "",
-    room: bin?.room || "",
-    shelf: bin?.shelf || "",
-    code: bin?.code || "",
-    description: bin?.description || "",
+    id: category?.id || "",
+    name: category?.name || "",
+    description: category?.description || "",
   });
+  error.value = "";
   show.value = true;
 }
 async function save() {
-  const data = {
-    name: draft.name,
-    room: draft.room || null,
-    shelf: draft.shelf || null,
-    code: draft.code || null,
-    description: draft.description || null,
-  };
+  const data = { name: draft.name, description: draft.description || null };
   try {
     draft.id
-      ? await apiService.updateInventoryBin(draft.id, data)
-      : await apiService.createInventoryBin(data);
+      ? await apiService.updateInventoryCategory(draft.id, data)
+      : await apiService.createInventoryCategory(data);
     show.value = false;
     await load();
   } catch (e: any) {
-    error.value = e.response?.data?.error || "Could not save bin";
+    error.value = e.response?.data?.error || "Could not save category";
   }
 }
-async function remove(bin: InventoryBin) {
-  if (!confirm(`Delete ${bin.name}?`)) return;
+async function remove(category: InventoryCategory) {
+  if (!confirm(`Delete ${category.name}?`)) return;
   try {
-    await apiService.deleteInventoryBin(bin.id);
+    await apiService.deleteInventoryCategory(category.id);
     await load();
   } catch (e: any) {
-    error.value = e.response?.data?.error || "Could not delete bin";
+    error.value = e.response?.data?.error || "Could not delete category";
   }
 }
-watch(
-  [() => filters.search, () => filters.room, () => filters.hasCode, pageSize],
-  () => (page.value = 1),
-);
+watch([() => filters.search, pageSize], () => (page.value = 1));
 onMounted(load);
 </script>
 <style scoped>

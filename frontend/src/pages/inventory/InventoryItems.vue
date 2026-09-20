@@ -35,6 +35,7 @@
             <option value="">All Statuses</option>
             <option value="available">Available</option>
             <option value="checked-out">Checked Out</option>
+            <option value="lost">Lost</option>
           </select></label
         ><label class="filter"
           ><span>Bin / Location</span
@@ -43,6 +44,19 @@
             <option value="unassigned">Unassigned</option>
             <option v-for="bin in bins" :key="bin.id" :value="bin.id">
               {{ locationName(bin) }}
+            </option>
+          </select></label
+        ><label class="filter"
+          ><span>Category</span
+          ><select v-model="filters.categoryId">
+            <option value="">All Categories</option>
+            <option value="none">Uncategorized</option>
+            <option
+              v-for="category in categories"
+              :key="category.id"
+              :value="category.id"
+            >
+              {{ category.name }}
             </option>
           </select></label
         ><label class="filter"
@@ -72,6 +86,7 @@
                 v-for="heading in [
                   'Item',
                   'Status',
+                  'Category',
                   'Location',
                   'Last updated',
                   'Actions',
@@ -104,7 +119,13 @@
                     entry.checkedOutToId ? `With ${holder(entry)}` : "Available"
                   }}</span
                 >
+                <span
+                  v-if="entry.lostAt"
+                  class="ml-2 rounded-full bg-red-900 px-2 py-1 text-xs font-semibold text-red-200"
+                  >Lost</span
+                >
               </td>
+              <td>{{ entry.category?.name || "—" }}</td>
               <td>{{ location(entry) }}</td>
               <td>{{ formatDate(entry.updatedAt!) }}</td>
               <td>
@@ -154,6 +175,7 @@
       v-if="editingItem"
       :item="editingItem"
       :bins="bins"
+      :categories="categories"
       @close="editingItem = null"
       @saved="refresh"
     />
@@ -182,20 +204,25 @@ import {
   PencilSquareIcon,
   XMarkIcon,
 } from "@heroicons/vue/24/outline";
-import type { InventoryBin, InventoryItem } from "@/types/api";
+import type { InventoryBin, InventoryCategory, InventoryItem } from "@/types/api";
 const items = ref<InventoryItem[]>([]),
   bins = ref<InventoryBin[]>([]),
+  categories = ref<InventoryCategory[]>([]),
   loading = ref(true),
   editingItem = ref<InventoryItem | null>(null),
   transactionItem = ref<InventoryItem | null>(null),
   page = ref(1),
   pageSize = ref(25),
-  filters = reactive({ search: "", status: "", binId: "" });
+  filters = reactive({ search: "", status: "", binId: "", categoryId: "" });
 const holder = (entry: InventoryItem) =>
     entry.checkedOutTo?.displayName ||
     `${entry.checkedOutTo?.firstName || ""} ${entry.checkedOutTo?.lastName || ""}`.trim(),
-  locationName = (bin: InventoryBin) =>
-    `${bin.room ? `${bin.room} · ` : ""}${bin.name}`,
+  locationName = (bin: InventoryBin) => {
+    const parts = [bin.room, bin.shelf ? `Shelf ${bin.shelf}` : ""].filter(
+      Boolean,
+    );
+    return parts.length ? `${parts.join(" · ")} · ${bin.name}` : bin.name;
+  },
   location = (entry: InventoryItem) =>
     entry.checkedOutToId
       ? "Checked out"
@@ -211,13 +238,19 @@ const filtered = computed(() => {
             v.toLowerCase().includes(q),
           )) &&
         (!filters.status ||
-          (filters.status === "available"
-            ? !entry.checkedOutToId
-            : !!entry.checkedOutToId)) &&
+          (filters.status === "lost"
+            ? !!entry.lostAt
+            : filters.status === "available"
+              ? !entry.checkedOutToId
+              : !!entry.checkedOutToId)) &&
         (!filters.binId ||
           (filters.binId === "unassigned"
             ? !entry.binId
-            : entry.binId === filters.binId)),
+            : entry.binId === filters.binId)) &&
+        (!filters.categoryId ||
+          (filters.categoryId === "none"
+            ? !entry.categoryId
+            : entry.categoryId === filters.categoryId)),
     );
   }),
   totalPages = computed(() =>
@@ -229,13 +262,14 @@ const filtered = computed(() => {
   );
 const formatDate = (value: string) => new Date(value).toLocaleDateString();
 function clearFilters() {
-  Object.assign(filters, { search: "", status: "", binId: "" });
+  Object.assign(filters, { search: "", status: "", binId: "", categoryId: "" });
 }
 async function load() {
   loading.value = true;
   const data = await apiService.getInventory();
   items.value = data.items;
   bins.value = data.bins;
+  categories.value = data.categories;
   loading.value = false;
 }
 async function refresh() {
@@ -243,7 +277,13 @@ async function refresh() {
   await load();
 }
 watch(
-  [() => filters.search, () => filters.status, () => filters.binId, pageSize],
+  [
+    () => filters.search,
+    () => filters.status,
+    () => filters.binId,
+    () => filters.categoryId,
+    pageSize,
+  ],
   () => (page.value = 1),
 );
 onMounted(load);

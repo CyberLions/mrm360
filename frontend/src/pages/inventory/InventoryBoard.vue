@@ -96,6 +96,12 @@
               {{ group.items[0].barcode }}
             </div>
             <div
+              v-if="group.items[0].category"
+              class="mt-1 inline-block rounded-full bg-gray-700 px-2 py-0.5 text-xs text-gray-300"
+            >
+              {{ group.items[0].category.name }}
+            </div>
+            <div
               v-if="group.items[0].checkedOutTo"
               class="mt-3 space-y-1 border-t border-gray-700 pt-2 text-xs"
             >
@@ -131,15 +137,16 @@
           {{ showBulk ? "Bulk add items" : "Add item" }}
         </h2>
         <p v-if="showBulk" class="text-sm text-gray-400">
-          One per line: barcode, name, bin name, room (bin and room optional).
-          Missing bins are created automatically.
+          One per line: barcode, name, bin name, room, category (all but
+          barcode and name are optional). Missing bins and categories are
+          created automatically.
         </p>
         <textarea
           v-if="showBulk"
           v-model="bulkText"
           rows="9"
           class="field font-mono"
-          placeholder="LAPTOP-001, Dell laptop, Locker 4, Room 101"
+          placeholder="LAPTOP-001, Dell laptop, Locker 4, Room 101, GBM Equipment"
         ></textarea
         ><template v-else
           ><div class="flex gap-2">
@@ -168,7 +175,17 @@
           ><select v-model="draft.binId" class="field">
             <option value="">No bin</option>
             <option v-for="bin in bins" :key="bin.id" :value="bin.id">
-              {{ bin.room ? `${bin.room} · ` : "" }}{{ bin.name }}
+              {{ binLabel(bin) }}
+            </option>
+          </select
+          ><select v-model="draft.categoryId" class="field">
+            <option value="">No category</option>
+            <option
+              v-for="category in categories"
+              :key="category.id"
+              :value="category.id"
+            >
+              {{ category.name }}
             </option>
           </select></template
         >
@@ -194,6 +211,10 @@
           class="field"
           placeholder="Room (optional)"
         /><input
+          v-model="binDraft.shelf"
+          class="field"
+          placeholder="Shelf (optional)"
+        /><input
           v-model="binDraft.code"
           class="field"
           placeholder="Locker code (optional)"
@@ -205,6 +226,26 @@
         <div class="flex justify-end gap-2">
           <button type="button" class="btn" @click="closeModals">Cancel</button
           ><button class="btn bg-blue-600">Create bin</button>
+        </div>
+      </form>
+    </div>
+    <div v-if="showCategory" class="overlay">
+      <form class="modal" @submit.prevent="saveCategory">
+        <h2 class="text-xl font-semibold text-white">Create category</h2>
+        <input
+          v-model="categoryDraft.name"
+          autofocus
+          required
+          class="field"
+          placeholder="Category name, e.g. GBM Equipment"
+        /><textarea
+          v-model="categoryDraft.description"
+          class="field"
+          placeholder="Description (optional)"
+        ></textarea>
+        <div class="flex justify-end gap-2">
+          <button type="button" class="btn" @click="closeModals">Cancel</button
+          ><button class="btn bg-blue-600">Create category</button>
         </div>
       </form>
     </div>
@@ -280,7 +321,7 @@
                   item.checkedOutToId
                     ? `Checked out to ${holderName(item)}`
                     : item.bin
-                      ? `${item.bin.room ? `${item.bin.room} · ` : ""}${item.bin.name}`
+                      ? binLabel(item.bin)
                       : "Unassigned"
                 }}
               </div>
@@ -315,6 +356,7 @@
       v-if="editingItem"
       :item="editingItem"
       :bins="bins"
+      :categories="categories"
       @close="editingItem = null"
       @saved="itemEdited"
     />
@@ -327,17 +369,19 @@ import apiService from "@/services/api";
 import IconButton from "@/components/common/IconButton.vue";
 import ItemEditModal from "@/components/inventory/ItemEditModal.vue";
 import { PencilSquareIcon } from "@heroicons/vue/24/outline";
-import type { InventoryBin, InventoryItem } from "@/types/api";
+import type { InventoryBin, InventoryCategory, InventoryItem } from "@/types/api";
 const route = useRoute(),
   router = useRouter();
 const items = ref<InventoryItem[]>([]),
   bins = ref<InventoryBin[]>([]),
+  categories = ref<InventoryCategory[]>([]),
   loading = ref(true),
   error = ref(""),
   canManage = ref(false),
   showItem = ref(false),
   showBulk = ref(false),
   showBin = ref(false),
+  showCategory = ref(false),
   bulkText = ref("");
 const draggedItem = ref<InventoryItem | null>(null),
   showCheckout = ref(false),
@@ -349,8 +393,21 @@ const selectedGroup = ref<{
   items: InventoryItem[];
 } | null>(null);
 const editingItem = ref<InventoryItem | null>(null);
-const draft = reactive({ barcode: "", name: "", binId: "" });
-const binDraft = reactive({ name: "", room: "", code: "", description: "" });
+const draft = reactive({ barcode: "", name: "", binId: "", categoryId: "" });
+const binDraft = reactive({
+  name: "",
+  room: "",
+  shelf: "",
+  code: "",
+  description: "",
+});
+const categoryDraft = reactive({ name: "", description: "" });
+const binLabel = (bin: InventoryBin) => {
+  const parts = [bin.room, bin.shelf ? `Shelf ${bin.shelf}` : ""].filter(
+    Boolean,
+  );
+  return parts.length ? `${parts.join(" · ")} · ${bin.name}` : bin.name;
+};
 const names = computed(() => [...new Set(items.value.map((i) => i.name))]);
 const groupItems = (list: InventoryItem[]) =>
   Object.values(
@@ -373,7 +430,11 @@ const columns = computed(() =>
           id: bin.id,
           name: bin.name,
           subtitle:
-            [bin.room, bin.code && `Code ${bin.code}`]
+            [
+              bin.room,
+              bin.shelf && `Shelf ${bin.shelf}`,
+              bin.code && `Code ${bin.code}`,
+            ]
               .filter(Boolean)
               .join(" · ") || "No room",
           groups: groupItems(
@@ -448,6 +509,7 @@ async function load() {
     const data = await apiService.getInventory();
     items.value = data.items;
     bins.value = data.bins;
+    categories.value = data.categories;
     canManage.value = data.canManage;
   } catch (e: any) {
     error.value = e.response?.data?.error || "Could not load inventory";
@@ -460,10 +522,17 @@ function openAdd(binId: string) {
   showItem.value = true;
 }
 function closeModals() {
-  showItem.value = showBulk.value = showBin.value = false;
+  showItem.value = showBulk.value = showBin.value = showCategory.value = false;
   bulkText.value = "";
-  Object.assign(draft, { barcode: "", name: "", binId: "" });
-  Object.assign(binDraft, { name: "", room: "", code: "", description: "" });
+  Object.assign(draft, { barcode: "", name: "", binId: "", categoryId: "" });
+  Object.assign(binDraft, {
+    name: "",
+    room: "",
+    shelf: "",
+    code: "",
+    description: "",
+  });
+  Object.assign(categoryDraft, { name: "", description: "" });
   if (route.query.action) router.replace("/inventory");
 }
 async function saveItems() {
@@ -474,7 +543,7 @@ async function saveItems() {
           .split("\n")
           .filter(Boolean)
           .map((line) => {
-            const [barcode, name, binName, room] = line
+            const [barcode, name, binName, room, categoryName] = line
               .split(",")
               .map((v) => v.trim());
             const bin = bins.value.find(
@@ -482,15 +551,26 @@ async function saveItems() {
                 b.name.toLowerCase() === (binName || "").toLowerCase() &&
                 (!room || b.room?.toLowerCase() === room.toLowerCase()),
             );
+            const category = categories.value.find(
+              (c) => c.name.toLowerCase() === (categoryName || "").toLowerCase(),
+            );
             return {
               barcode,
               name,
               binId: bin?.id || null,
               binName: bin ? undefined : binName || undefined,
               room: bin ? undefined : room || undefined,
+              categoryId: category?.id || null,
+              categoryName: category ? undefined : categoryName || undefined,
             };
           })
-      : [{ ...draft, binId: draft.binId || null }];
+      : [
+          {
+            ...draft,
+            binId: draft.binId || null,
+            categoryId: draft.categoryId || null,
+          },
+        ];
     await apiService.createInventoryItems(payload);
     closeModals();
     await load();
@@ -503,6 +583,7 @@ async function saveBin() {
     await apiService.createInventoryBin({
       name: binDraft.name,
       room: binDraft.room || null,
+      shelf: binDraft.shelf || null,
       code: binDraft.code || null,
       description: binDraft.description || null,
     });
@@ -510,6 +591,18 @@ async function saveBin() {
     await load();
   } catch (e: any) {
     error.value = e.response?.data?.error || "Could not create bin";
+  }
+}
+async function saveCategory() {
+  try {
+    await apiService.createInventoryCategory({
+      name: categoryDraft.name,
+      description: categoryDraft.description || null,
+    });
+    closeModals();
+    await load();
+  } catch (e: any) {
+    error.value = e.response?.data?.error || "Could not create category";
   }
 }
 async function generateBarcode() {
@@ -585,6 +678,7 @@ watch(
   (action) => {
     showItem.value = action === "add-item";
     showBin.value = action === "add-bin";
+    showCategory.value = action === "add-category";
     showBulk.value = action === "bulk";
   },
   { immediate: true },

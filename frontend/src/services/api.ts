@@ -23,7 +23,7 @@ import type {
   WorkshopSeriesCreate,
   WorkshopSeriesUpdate,
   BadgeClass
-  , InventoryItem, InventoryBin, ItemLoan
+  , InventoryItem, InventoryBin, InventoryCategory, ItemLoan, InventoryLabelTemplate, InventoryLabelJobStatus
 } from '@/types/api'
 
 class ApiService {
@@ -314,15 +314,15 @@ class ApiService {
     return response.data
   }
 
-  async getInventory(): Promise<{ items: InventoryItem[]; bins: InventoryBin[]; canManage: boolean }> {
+  async getInventory(): Promise<{ items: InventoryItem[]; bins: InventoryBin[]; categories: InventoryCategory[]; canManage: boolean }> {
     return (await this.api.get('/inventory')).data
   }
 
-  async createInventoryItems(items: Array<{ barcode: string; name: string; binId?: string | null; binName?: string; room?: string }>): Promise<{ items: InventoryItem[] }> {
+  async createInventoryItems(items: Array<{ barcode: string; name: string; binId?: string | null; binName?: string; room?: string; categoryId?: string | null; categoryName?: string }>): Promise<{ items: InventoryItem[] }> {
     return (await this.api.post('/inventory', { items })).data
   }
 
-  async createInventoryBin(data: { name: string; room?: string | null; code?: string | null; description?: string | null }): Promise<InventoryBin> {
+  async createInventoryBin(data: { name: string; room?: string | null; shelf?: string | null; code?: string | null; description?: string | null }): Promise<InventoryBin> {
     return (await this.api.post('/inventory/bins', data)).data.bin
   }
 
@@ -330,7 +330,7 @@ class ApiService {
     return (await this.api.get('/inventory/bins')).data.bins
   }
 
-  async updateInventoryBin(id: string, data: { name: string; room?: string | null; code?: string | null; description?: string | null }): Promise<InventoryBin> {
+  async updateInventoryBin(id: string, data: { name: string; room?: string | null; shelf?: string | null; code?: string | null; description?: string | null }): Promise<InventoryBin> {
     return (await this.api.put(`/inventory/bins/${id}`, data)).data.bin
   }
 
@@ -338,11 +338,27 @@ class ApiService {
     await this.api.delete(`/inventory/bins/${id}`)
   }
 
+  async createInventoryCategory(data: { name: string; description?: string | null }): Promise<InventoryCategory> {
+    return (await this.api.post('/inventory/categories', data)).data.category
+  }
+
+  async getInventoryCategories(): Promise<InventoryCategory[]> {
+    return (await this.api.get('/inventory/categories')).data.categories
+  }
+
+  async updateInventoryCategory(id: string, data: { name: string; description?: string | null }): Promise<InventoryCategory> {
+    return (await this.api.put(`/inventory/categories/${id}`, data)).data.category
+  }
+
+  async deleteInventoryCategory(id: string): Promise<void> {
+    await this.api.delete(`/inventory/categories/${id}`)
+  }
+
   async getInventoryItem(id: string): Promise<InventoryItem & { loans: ItemLoan[] }> {
     return (await this.api.get(`/inventory/items/${id}`)).data.item
   }
 
-  async updateInventoryItem(id: string, data: { binId?: string | null; name?: string }): Promise<InventoryItem> {
+  async updateInventoryItem(id: string, data: { binId?: string | null; categoryId?: string | null; name?: string }): Promise<InventoryItem> {
     return (await this.api.put(`/inventory/items/${id}`, data)).data.item
   }
 
@@ -360,6 +376,39 @@ class ApiService {
 
   async generateInventoryBarcode(): Promise<string> {
     return (await this.api.post('/inventory/generate-barcode')).data.barcode
+  }
+
+  // Public: sent with plain axios so the interceptors don't force a login for anonymous visitors.
+  async reportInventoryItemLost(data: { code: string; note?: string; contact?: string }): Promise<{ itemName: string; newlyReported: boolean }> {
+    return (await axios.post(`${window.ENV.VITE_API_BASE_URL}/inventory/lost`, data, { timeout: 10000 })).data
+  }
+
+  async markInventoryItemFound(id: string): Promise<InventoryItem> {
+    return (await this.api.put(`/inventory/items/${id}`, { markFound: true })).data.item
+  }
+
+  async getInventoryLabelTemplates(): Promise<{ templates: InventoryLabelTemplate[]; maxLabels: number }> {
+    return (await this.api.get('/inventory/labels')).data
+  }
+
+  async requestInventoryLabels(itemIds: string[], template: string): Promise<string> {
+    return (await this.api.post('/inventory/labels', { itemIds, template })).data.jobId
+  }
+
+  async getInventoryLabelJob(jobId: string): Promise<InventoryLabelJobStatus> {
+    return (await this.api.get(`/inventory/labels/${jobId}`)).data
+  }
+
+  async downloadInventoryLabels(jobId: string): Promise<Blob> {
+    try {
+      return (await this.api.get(`/inventory/labels/${jobId}/download`, { responseType: 'blob' })).data
+    } catch (error: any) {
+      // Error bodies arrive as Blobs too; unwrap so callers can read response.data.error.
+      if (error.response?.data instanceof Blob) {
+        try { error.response.data = JSON.parse(await error.response.data.text()) } catch { /* keep the blob */ }
+      }
+      throw error
+    }
   }
 
   // Wiretap endpoints

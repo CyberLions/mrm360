@@ -1,0 +1,76 @@
+import { prisma } from '@/models/prismaClient';
+import { inventoryLabelQueue } from '@/tasks/queue';
+import { loadLabelPdf } from '@/services/inventoryLabelStore';
+import { LabelTemplateId, MAX_LABELS_PER_JOB } from '@/services/inventoryLabelTemplates';
+import { createError } from '@/middleware/errorHandler';
+
+export interface InventoryLabelJobData {
+  itemIds: string[];
+  template: LabelTemplateId;
+  requestedById: string;
+}
+
+export interface InventoryLabelJobResult {
+  itemCount: number;
+  filename: string;
+}
+
+export type InventoryLabelJobState = 'queued' | 'processing' | 'completed' | 'failed';
+
+export interface InventoryLabelJobStatus {
+  jobId: string;
+  state: InventoryLabelJobState;
+  progress: { done: number; total: number };
+  error?: string;
+}
+
+const STATE_MAP: Record<string, InventoryLabelJobState> = {
+  completed: 'completed',
+  failed: 'failed',
+  active: 'processing'
+};
+
+export class InventoryLabelManager {
+  async requestLabels(params: { itemIds: string[]; template: LabelTemplateId; requestedById: string }): Promise<{ jobId: string }> {
+    const itemIds = [...new Set(params.itemIds)];
+    if (itemIds.length > MAX_LABELS_PER_JOB) {
+      throw createError(`Select at most ${MAX_LABELS_PER_JOB} items per label run`, 400, 'TOO_MANY_ITEMS');
+    }
+    const found = await prisma.inventoryItem.count({ where: { id: { in: itemIds } } });
+    if (found !== itemIds.length) {
+      throw createError('Some selected items no longer exist. Refresh and try again.', 404, 'ITEMS_NOT_FOUND');
+    }
+
+    const data: InventoryLabelJobData = { itemIds, template: params.template, requestedById: params.requestedById };
+    const job = await inventoryLabelQueue.add('generate-labels', data);
+    return { jobId: String(job.id) };
+  }
+
+  async getStatus(jobId: string, requestedById: string): Promise<InventoryLabelJobStatus> {
+    const job = await this.findOwnedJob(jobId, requestedById);
+    const state = STATE_MAP[await job.getState()] ?? 'queued';
+    const total = job.data.itemIds.length;
+    const progress = typeof job.progress === 'object' && job.progress !== null ? (job.progress as { done: number }) : { done: 0 };
+    return {
+      jobId,
+      state,
+      progress: { done: state === 'completed' ? total : progress.done, total },
+      ...(state === 'failed' ? { error: job.failedReason || 'Label generation failed' } : {})
+    };
+  }
+
+  async getPdf(jobId: string, requestedById: string): Promise<{ pdf: Buffer; filename: string }> {
+    const job = await this.findOwnedJob(jobId, requestedById);
+    if ((await job.getState()) !== 'completed') throw createError('Labels are not ready yet', 409, 'NOT_READY');
+    const pdf = await loadLabelPdf(jobId);
+    if (!pdf) throw createError('These labels have expired. Generate them again.', 410, 'EXPIRED');
+    return { pdf, filename: (job.returnvalue as InventoryLabelJobResult).filename };
+  }
+
+  // Jobs are only visible to the person who requested them.
+  private async findOwnedJob(jobId: string, requestedById: string) {
+    const job = await inventoryLabelQueue.getJob(jobId);
+    if (!job || job.data.requestedById !== requestedById) throw createError('Label job not found', 404, 'NOT_FOUND');
+    return job;
+  }
+}

@@ -9,7 +9,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   const id = z.string().safeParse(req.query.id)
   if (!id.success) return res.status(400).json({ error: 'Invalid bin ID' })
   if (req.method === 'PUT') {
-    const parsed = z.object({ name: z.string().trim().min(1), room: z.string().trim().nullable().optional(), code: z.string().trim().nullable().optional(), description: z.string().trim().nullable().optional() }).safeParse(req.body)
+    const parsed = z.object({ name: z.string().trim().min(1), room: z.string().trim().nullable().optional(), shelf: z.string().trim().nullable().optional(), code: z.string().trim().nullable().optional(), description: z.string().trim().nullable().optional() }).safeParse(req.body)
     if (!parsed.success) return res.status(400).json({ error: 'Invalid bin' })
     const bin = await prisma.inventoryBin.update({ where: { id: id.data }, data: parsed.data, include: { _count: { select: { items: true } } } })
     return res.status(200).json({ bin })

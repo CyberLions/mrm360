@@ -16,6 +16,11 @@
             class="rounded-full px-3 py-1 text-sm"
             >{{ item.checkedOutToId ? "Checked out" : "Available" }}</span
           >
+          <span
+            v-if="item.lostAt"
+            class="rounded-full bg-red-900 px-3 py-1 text-sm text-red-200"
+            >Lost</span
+          >
         </div>
         <code class="text-gray-400">{{ item.barcode }}</code>
       </div>
@@ -33,6 +38,31 @@
         />
       </div>
     </div>
+    <section
+      v-if="item.lostAt"
+      class="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-red-800 bg-red-950/50 p-5"
+      role="alert"
+    >
+      <div class="min-w-0">
+        <h2 class="font-semibold text-red-200">Reported lost</h2>
+        <p class="mt-1 text-sm text-red-100/80">
+          Flagged {{ date(item.lostAt) }}. It clears automatically on the next
+          check-in or checkout.
+        </p>
+        <p v-if="item.lostNote" class="mt-2 break-words text-sm text-gray-200">
+          <span class="font-medium text-gray-400">Reporter note:</span>
+          {{ item.lostNote }}
+        </p>
+      </div>
+      <button
+        type="button"
+        class="min-h-10 rounded-lg bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-600 disabled:opacity-50"
+        :disabled="markingFound"
+        @click="markFound"
+      >
+        {{ markingFound ? "Updating…" : "Mark as found" }}
+      </button>
+    </section>
     <div class="grid gap-6 md:grid-cols-2">
       <section class="card">
         <h2 class="heading">Current status</h2>
@@ -40,6 +70,10 @@
           <div>
             <dt>Holder</dt>
             <dd>{{ item.checkedOutTo ? name(item.checkedOutTo) : "None" }}</dd>
+          </div>
+          <div>
+            <dt>Category</dt>
+            <dd>{{ item.category?.name || "Uncategorized" }}</dd>
           </div>
           <div>
             <dt>Location</dt>
@@ -65,6 +99,10 @@
           <div>
             <dt>Room</dt>
             <dd>{{ item.bin.room || "Not specified" }}</dd>
+          </div>
+          <div>
+            <dt>Shelf</dt>
+            <dd>{{ item.bin.shelf || "Not specified" }}</dd>
           </div>
           <div>
             <dt>Code</dt>
@@ -154,6 +192,7 @@
       v-if="editing"
       :item="item"
       :bins="bins"
+      :categories="categories"
       @close="editing = false"
       @saved="refresh"
     /><ItemTransactionModal
@@ -178,12 +217,19 @@ import {
   ArrowRightOnRectangleIcon,
   PencilSquareIcon,
 } from "@heroicons/vue/24/outline";
-import type { InventoryBin, InventoryItem, ItemLoan } from "@/types/api";
+import type {
+  InventoryBin,
+  InventoryCategory,
+  InventoryItem,
+  ItemLoan,
+} from "@/types/api";
 const route = useRoute(),
   item = ref<(InventoryItem & { loans: ItemLoan[] }) | null>(null),
   bins = ref<InventoryBin[]>([]),
+  categories = ref<InventoryCategory[]>([]),
   editing = ref(false),
-  transacting = ref(false);
+  transacting = ref(false),
+  markingFound = ref(false);
 const name = (u: {
     firstName: string;
     lastName: string;
@@ -191,8 +237,12 @@ const name = (u: {
   }) => u.displayName || `${u.firstName} ${u.lastName}`,
   initials = (u?: { firstName: string; lastName: string }) =>
     u ? `${u.firstName[0] || ""}${u.lastName[0] || ""}`.toUpperCase() : "?",
-  locationName = (bin: InventoryBin) =>
-    `${bin.room ? `${bin.room} · ` : ""}${bin.name}`,
+  locationName = (bin: InventoryBin) => {
+    const parts = [bin.room, bin.shelf ? `Shelf ${bin.shelf}` : ""].filter(
+      Boolean,
+    );
+    return parts.length ? `${parts.join(" · ")} · ${bin.name}` : bin.name;
+  },
   date = (v: string) =>
     new Date(v).toLocaleString(undefined, {
       dateStyle: "medium",
@@ -215,6 +265,17 @@ const name = (u: {
 async function load() {
   item.value = await apiService.getInventoryItem(route.params.id as string);
   bins.value = await apiService.getInventoryBins();
+  categories.value = await apiService.getInventoryCategories();
+}
+async function markFound() {
+  if (!item.value) return;
+  markingFound.value = true;
+  try {
+    await apiService.markInventoryItemFound(item.value.id);
+    await load();
+  } finally {
+    markingFound.value = false;
+  }
 }
 async function refresh() {
   editing.value = transacting.value = false;

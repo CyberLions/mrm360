@@ -86,6 +86,32 @@ function inventoryDetailsBlock(data: TemplateData): string {
     </dl>`;
 }
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Everything in a lost report is typed by an unauthenticated visitor, so it is escaped.
+function lostItemDetailsBlock(data: TemplateData): string {
+  return `
+    <dl class="event-details">
+      <dt>Item</dt>
+      <dd>${escapeHtml(data.itemName)}</dd>
+      <dt>Barcode</dt>
+      <dd>${escapeHtml(data.itemBarcode)}</dd>
+      <dt>Reported</dt>
+      <dd>${escapeHtml(data.transactionDate)}</dd>
+      ${data.lastHolder ? `<dt>Last checked out to</dt><dd>${escapeHtml(data.lastHolder)}</dd>` : ''}
+      ${data.binName ? `<dt>Last known location</dt><dd>${escapeHtml(data.binName)}</dd>` : ''}
+      ${data.reportNote ? `<dt>Note from reporter</dt><dd>${escapeHtml(data.reportNote)}</dd>` : ''}
+      ${data.reporterContact ? `<dt>Reporter contact</dt><dd>${escapeHtml(data.reporterContact)}</dd>` : ''}
+    </dl>`;
+}
+
 export const emailTemplates = {
   rsvpConfirmed(data: TemplateData): { subject: string; html: string } {
     return {
@@ -189,6 +215,19 @@ export const emailTemplates = {
         ${inventoryDetailsBlock(data)}
         <p><span class="badge badge-confirmed">Returned</span></p>
         <p>Thank you for returning it!</p>
+      `, data.orgName),
+    };
+  },
+
+  itemReportedLost(data: TemplateData): { subject: string; html: string } {
+    return {
+      subject: `Lost item reported: ${data.itemName}`,
+      html: baseLayout(`
+        <h2>Item reported lost</h2>
+        <p>Hi ${escapeHtml(data.userName)}, someone used the lost-item page to report the following item as lost.</p>
+        ${lostItemDetailsBlock(data)}
+        <p><span class="badge badge-declined">Reported Lost</span></p>
+        ${data.itemUrl ? `<p><a href="${escapeHtml(data.itemUrl)}">View the item in MRM360</a></p>` : ''}
       `, data.orgName),
     };
   },
