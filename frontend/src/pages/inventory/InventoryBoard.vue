@@ -23,6 +23,63 @@
     <div v-if="error" class="rounded bg-red-900/50 p-3 text-red-200">
       {{ error }}
     </div>
+    <div
+      v-if="!loading"
+      class="flex flex-wrap items-center gap-2 rounded-xl border border-gray-700 bg-gray-800/60 p-3"
+    >
+      <FunnelIcon class="h-5 w-5 shrink-0 text-blue-400" />
+      <input
+        v-model="filters.search"
+        type="search"
+        class="field min-w-[12rem] flex-1"
+        placeholder="Search name, barcode or description…"
+        aria-label="Search items"
+      /><PlaceSelect
+        v-if="canManage"
+        v-model="filters.place"
+        class="field !w-auto"
+        empty-label="All locations"
+        aria-label="Show only this location and what is inside it"
+        :bins="bins"
+        :shelves="shelves"
+        :rooms="rooms"
+        ><option value="unassigned">Unassigned</option>
+        <option value="checked-out">Checked out</option></PlaceSelect
+      ><select
+        v-model="filters.status"
+        class="field !w-auto"
+        aria-label="Filter by status"
+      >
+        <option value="">All statuses</option>
+        <option value="available">Available</option>
+        <option value="checked-out">Checked out</option>
+        <option value="lost">Lost</option></select
+      ><select
+        v-model="filters.categoryId"
+        class="field !w-auto"
+        aria-label="Filter by category"
+      >
+        <option value="">All categories</option>
+        <option value="none">Uncategorized</option>
+        <option
+          v-for="category in categories"
+          :key="category.id"
+          :value="category.id"
+        >
+          {{ category.name }}
+        </option></select
+      ><span v-if="itemFiltersActive" class="text-sm text-gray-400"
+        >Showing {{ visibleItems.length }} of {{ items.length }} items</span
+      ><template v-if="filtersActive"
+        ><button
+          type="button"
+          class="flex items-center rounded px-3 py-2 text-sm text-gray-400 hover:bg-gray-700"
+          @click="clearFilters"
+        >
+          <XMarkIcon class="mr-1 h-4 w-4" />Clear
+        </button></template
+      >
+    </div>
     <div v-if="loading" class="text-gray-400">Loading inventory…</div>
     <div v-else class="columns-1 gap-4 md:columns-2 xl:columns-3 2xl:columns-4">
       <section
@@ -46,11 +103,19 @@
             <IconButton
               v-if="itemCount(column.groups)"
               :icon="ArrowsRightLeftIcon"
-              :label="`Move all ${itemCount(column.groups)} items to another location`"
+              :label="
+                itemFiltersActive
+                  ? `Move the ${itemCount(column.groups)} shown items to another location`
+                  : `Move all ${itemCount(column.groups)} items to another location`
+              "
               @click="movingItems = columnItems(column.groups)"
             />
             <IconButton
-              v-if="column.id !== 'unassigned' && itemCount(column.groups)"
+              v-if="
+                !itemFiltersActive &&
+                column.id !== 'unassigned' &&
+                itemCount(column.groups)
+              "
               :icon="ArchiveBoxXMarkIcon"
               :label="`Empty ${column.name} (move all to Unassigned)`"
               variant="warning"
@@ -154,7 +219,7 @@
             v-if="!column.groups.length"
             class="py-3 text-center text-sm text-gray-500"
           >
-            Drop items here
+            {{ itemFiltersActive ? "No matching items" : "Drop items here" }}
           </p>
         </div>
       </section>
@@ -442,7 +507,9 @@ import { NO_PLACE, parsePlaceValue, placeValue } from "@/utils/place";
 import {
   ArchiveBoxXMarkIcon,
   ArrowsRightLeftIcon,
+  FunnelIcon,
   PencilSquareIcon,
+  XMarkIcon,
 } from "@heroicons/vue/24/outline";
 import type {
   InventoryBin,
@@ -499,6 +566,38 @@ const binDraft = reactive({
 });
 const categoryDraft = reactive({ name: "", description: "" });
 const names = computed(() => [...new Set(items.value.map((i) => i.name))]);
+// Search, status and category narrow the cards; every column stays as a drop target. Location
+// is different: it narrows the board to just that room, shelf or bin (column id = place value).
+const filters = reactive({ search: "", status: "", place: "", categoryId: "" });
+const itemFiltersActive = computed(
+  () => !!(filters.search.trim() || filters.status || filters.categoryId),
+);
+const filtersActive = computed(
+  () => itemFiltersActive.value || !!filters.place,
+);
+const visibleItems = computed(() => {
+  const q = filters.search.trim().toLowerCase();
+  return items.value.filter(
+    (item) =>
+      (!q ||
+        [item.name, item.barcode, item.description || "", holderName(item)].some(
+          (v) => v.toLowerCase().includes(q),
+        )) &&
+      (!filters.status ||
+        (filters.status === "lost"
+          ? !!item.lostAt
+          : filters.status === "available"
+            ? !item.checkedOutToId
+            : !!item.checkedOutToId)) &&
+      (!filters.categoryId ||
+        (filters.categoryId === "none"
+          ? !item.categoryId
+          : item.categoryId === filters.categoryId)),
+  );
+});
+function clearFilters() {
+  Object.assign(filters, { search: "", status: "", place: "", categoryId: "" });
+}
 // Rooms and shelves that already exist, offered when creating a bin; shelves follow the room.
 const roomNames = computed(() =>
   [...new Set([...rooms.value.map((r) => r.name), ...bins.value.map((b) => b.room).filter((v): v is string => !!v)])].sort(),
@@ -524,9 +623,11 @@ const groupItems = (list: InventoryItem[]) =>
 // "add here" knows exactly where it means.
 const stocked = (value: string) =>
   groupItems(
-    items.value.filter((i) => placeValue(i) === value && !i.checkedOutToId),
+    visibleItems.value.filter(
+      (i) => placeValue(i) === value && !i.checkedOutToId,
+    ),
   );
-const columns = computed(() =>
+const allColumns = computed(() =>
   canManage.value
     ? [
         ...rooms.value.map((room) => ({
@@ -565,7 +666,7 @@ const columns = computed(() =>
           id: "checked-out",
           name: "Checked out",
           subtitle: "Member inventory",
-          groups: groupItems(items.value.filter((i) => i.checkedOutToId)),
+          groups: groupItems(visibleItems.value.filter((i) => i.checkedOutToId)),
         },
       ]
     : [
@@ -573,9 +674,38 @@ const columns = computed(() =>
           id: "mine",
           name: "My inventory",
           subtitle: "Checked out to you",
-          groups: groupItems(items.value),
+          groups: groupItems(visibleItems.value),
         },
       ],
+);
+// The column ids a location filter keeps: the container itself plus what is inside it. A room
+// holds its shelves and every bin in it; a shelf holds the bins on it (matched by name within
+// the shelf's room, as bins reference them).
+const placeScope = computed(() => {
+  const [kind, id] = filters.place.split(":");
+  const ids = new Set([filters.place]);
+  if (kind === "room") {
+    const room = rooms.value.find((r) => r.id === id);
+    for (const shelf of shelves.value)
+      if (shelf.roomId === id) ids.add(`shelf:${shelf.id}`);
+    for (const bin of bins.value)
+      if (room && bin.room === room.name) ids.add(`bin:${bin.id}`);
+  } else if (kind === "shelf") {
+    const shelf = shelves.value.find((sh) => sh.id === id);
+    for (const bin of bins.value)
+      if (
+        shelf &&
+        bin.shelf === shelf.name &&
+        (bin.room ?? "") === (shelf.room?.name ?? "")
+      )
+        ids.add(`bin:${bin.id}`);
+  }
+  return ids;
+});
+const columns = computed(() =>
+  filters.place
+    ? allColumns.value.filter((column) => placeScope.value.has(column.id))
+    : allColumns.value,
 );
 const itemCount = (groups: { items: InventoryItem[] }[]) =>
   groups.reduce((total, group) => total + group.items.length, 0);
