@@ -28,7 +28,7 @@
           ><span>Search</span
           ><input
             v-model="filters.search"
-            placeholder="Search name or barcode..." /></label
+            placeholder="Search name, barcode or description..." /></label
         ><label class="filter"
           ><span>Status</span
           ><select v-model="filters.status">
@@ -106,6 +106,13 @@
               <td>
                 <div class="font-medium text-gray-100">{{ entry.name }}</div>
                 <code class="text-xs text-gray-400">{{ entry.barcode }}</code>
+                <div
+                  v-if="entry.description"
+                  class="mt-1 max-w-xs truncate text-xs text-gray-500"
+                  :title="entry.description"
+                >
+                  {{ entry.description }}
+                </div>
               </td>
               <td>
                 <span
@@ -234,7 +241,7 @@ const filtered = computed(() => {
     return items.value.filter(
       (entry) =>
         (!q ||
-          [entry.name, entry.barcode, holder(entry)].some((v) =>
+          [entry.name, entry.barcode, entry.description || "", holder(entry)].some((v) =>
             v.toLowerCase().includes(q),
           )) &&
         (!filters.status ||

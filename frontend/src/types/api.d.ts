@@ -45,6 +45,7 @@ export interface InventoryItem {
   id: string
   barcode: string
   name: string
+  description?: string | null
   binId?: string
   bin?: InventoryBin
   categoryId?: string
@@ -57,12 +58,24 @@ export interface InventoryItem {
   createdAt?: string
   updatedAt?: string
 }
+export interface InventoryBinRef { id: string; name: string; room: string | null; shelf: string | null }
+/** Response to a check-in/check-out; the extra fields are set on check-in. */
+export interface InventoryTransactionResult {
+  message: string
+  itemId?: string
+  itemName?: string
+  /** Where the item is now. */
+  bin?: InventoryBinRef | null
+  /** Where it was before it was checked out. */
+  lastBin?: InventoryBinRef | null
+}
 export interface InventoryLocationSpec { room: string | null; shelf: string | null; binId?: string | null }
 export interface InventoryLocationItem {
   id: string
   name: string
   barcode: string
   category: string | null
+  description: string | null
   status: 'available' | 'checked-out' | 'with-you' | 'lost'
 }
 export interface InventoryLocationBin { id: string; name: string; shelf: string | null; code: string | null; description: string | null; items: InventoryLocationItem[] }

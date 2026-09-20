@@ -137,16 +137,16 @@
           {{ showBulk ? "Bulk add items" : "Add item" }}
         </h2>
         <p v-if="showBulk" class="text-sm text-gray-400">
-          One per line: barcode, name, bin name, room, category (all but
-          barcode and name are optional). Missing bins and categories are
-          created automatically.
+          One per line: barcode, name, bin name, room, category, description
+          (all but barcode and name are optional; the description can contain
+          commas). Missing bins and categories are created automatically.
         </p>
         <textarea
           v-if="showBulk"
           v-model="bulkText"
           rows="9"
           class="field font-mono"
-          placeholder="LAPTOP-001, Dell laptop, Locker 4, Room 101, GBM Equipment"
+          placeholder="LAPTOP-001, Dell laptop, Locker 4, Room 101, GBM Equipment, 14-inch, charger included"
         ></textarea
         ><template v-else
           ><div class="flex gap-2">
@@ -172,6 +172,13 @@
             placeholder="Item name"
           /><datalist id="item-names">
             <option v-for="name in names" :key="name" :value="name" /></datalist
+          ><textarea
+            v-model="draft.description"
+            rows="2"
+            maxlength="2000"
+            class="field"
+            placeholder="Description (optional): size, condition, what it's for…"
+          ></textarea
           ><select v-model="draft.binId" class="field">
             <option value="">No bin</option>
             <option v-for="bin in bins" :key="bin.id" :value="bin.id">
@@ -393,7 +400,13 @@ const selectedGroup = ref<{
   items: InventoryItem[];
 } | null>(null);
 const editingItem = ref<InventoryItem | null>(null);
-const draft = reactive({ barcode: "", name: "", binId: "", categoryId: "" });
+const draft = reactive({
+  barcode: "",
+  name: "",
+  description: "",
+  binId: "",
+  categoryId: "",
+});
 const binDraft = reactive({
   name: "",
   room: "",
@@ -524,7 +537,13 @@ function openAdd(binId: string) {
 function closeModals() {
   showItem.value = showBulk.value = showBin.value = showCategory.value = false;
   bulkText.value = "";
-  Object.assign(draft, { barcode: "", name: "", binId: "", categoryId: "" });
+  Object.assign(draft, {
+    barcode: "",
+    name: "",
+    description: "",
+    binId: "",
+    categoryId: "",
+  });
   Object.assign(binDraft, {
     name: "",
     room: "",
@@ -543,9 +562,11 @@ async function saveItems() {
           .split("\n")
           .filter(Boolean)
           .map((line) => {
-            const [barcode, name, binName, room, categoryName] = line
+            const [barcode, name, binName, room, categoryName, ...rest] = line
               .split(",")
               .map((v) => v.trim());
+            // Everything after the category is the description, commas included.
+            const description = rest.join(", ").trim();
             const bin = bins.value.find(
               (b) =>
                 b.name.toLowerCase() === (binName || "").toLowerCase() &&
@@ -557,6 +578,7 @@ async function saveItems() {
             return {
               barcode,
               name,
+              description: description || null,
               binId: bin?.id || null,
               binName: bin ? undefined : binName || undefined,
               room: bin ? undefined : room || undefined,
@@ -567,6 +589,7 @@ async function saveItems() {
       : [
           {
             ...draft,
+            description: draft.description.trim() || null,
             binId: draft.binId || null,
             categoryId: draft.categoryId || null,
           },

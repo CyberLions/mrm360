@@ -271,11 +271,27 @@
       <div v-if="mode === 'checkin'">
         <label class="label">Return bin</label
         ><select v-model="binId" class="field">
-          <option value="">Keep previous location</option>
+          <option value="">Its last bin (default)</option>
           <option v-for="bin in bins" :key="bin.id" :value="bin.id">
             {{ binLabel(bin) }}
           </option>
         </select>
+        <label
+          class="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-gray-700 p-3 text-sm text-gray-300"
+        >
+          <input
+            v-model="bulkCheckin"
+            type="checkbox"
+            class="mt-0.5 h-5 w-5 rounded border-gray-500 bg-gray-800 text-blue-600 focus:ring-blue-500"
+          />
+          <span>
+            <strong class="text-gray-100">Bulk check-in</strong>
+            <span class="block text-gray-400"
+              >Show a quick notice with each item's bin instead of a popup.
+              Pick a return bin above to put the whole batch in one place.</span
+            >
+          </span>
+        </label>
       </div>
       <button
         v-if="inputMode === 'text'"
@@ -299,6 +315,16 @@
         {{ message }}
       </div>
     </section>
+    <CheckinBinModal
+      v-if="checkinResult"
+      :result="checkinResult"
+      :bins="bins"
+      :bulk-on="bulkCheckin"
+      :saving="moving"
+      :error="moveError"
+      @close="finishCheckin"
+      @move="moveCheckedInItem"
+    />
   </div>
 </template>
 <script setup lang="ts">
@@ -306,6 +332,9 @@ import { computed, nextTick, onMounted, ref, watch } from "vue";
 import apiService from "@/services/api";
 import { useAuthStore } from "@/stores/authStore";
 import CameraCodeScanner from "@/components/inventory/CameraCodeScanner.vue";
+import CheckinBinModal from "@/components/inventory/CheckinBinModal.vue";
+import { useToast } from "vue-toastification";
+import { binLabel as formatBin } from "@/utils/binLabel";
 import {
   ArrowLeftOnRectangleIcon,
   ArrowPathIcon,
@@ -321,8 +350,16 @@ import type {
   InventoryBin,
   InventoryCategory,
   InventoryItem,
+  InventoryTransactionResult,
 } from "@/types/api";
 type Mode = "self-checkout" | "bulk-checkout" | "checkin" | "quick-add";
+const toast = useToast();
+// After a check-in: show a popup with the item's last bin (and a way to move it), or, in
+// bulk mode, just a toast. The toggle lives in memory only so a shared kiosk starts fresh.
+const checkinResult = ref<InventoryTransactionResult | null>(null),
+  bulkCheckin = ref(false),
+  moving = ref(false),
+  moveError = ref("");
 const tabs: { id: Mode; label: string; icon: any }[] = [
   { id: "self-checkout", label: "Self checkout", icon: UserIcon },
   { id: "bulk-checkout", label: "Bulk/team checkout", icon: ArrowRightOnRectangleIcon },
@@ -470,8 +507,40 @@ function showError(e: any) {
   failed.value = true;
   message.value = e.response?.data?.error || e.message || "Operation failed";
 }
+function announceCheckin(result: InventoryTransactionResult) {
+  if (!result.itemId) return;
+  if (bulkCheckin.value) {
+    toast.success(`${result.itemName} → ${formatBin(result.bin)}`);
+  } else {
+    moveError.value = "";
+    checkinResult.value = result;
+  }
+}
+function finishCheckin(bulk: boolean) {
+  bulkCheckin.value = bulk;
+  checkinResult.value = null;
+  moveError.value = "";
+  reset();
+}
+async function moveCheckedInItem(newBinId: string | null, bulk: boolean) {
+  const result = checkinResult.value;
+  if (!result?.itemId || moving.value) return;
+  moving.value = true;
+  moveError.value = "";
+  try {
+    await apiService.moveInventoryItem(result.itemId, newBinId);
+    const target = bins.value.find((bin) => bin.id === newBinId);
+    toast.success(`${result.itemName} moved to ${formatBin(target)}`);
+    finishCheckin(bulk);
+  } catch (e: any) {
+    moveError.value = e.response?.data?.error || "Could not move the item";
+  } finally {
+    moving.value = false;
+  }
+}
 async function submit() {
-  if (submitting.value) return;
+  // Ignore scans that arrive while the check-in popup is open.
+  if (submitting.value || checkinResult.value) return;
   submitting.value = true;
   message.value = "";
   try {
@@ -489,16 +558,16 @@ async function submit() {
       message.value = `${name.value} created`;
     } else {
       if (!barcode.value) throw new Error("Scan an item barcode");
-      message.value = (
-        await apiService.inventoryTransaction({
-          action: mode.value === "checkin" ? "checkin" : "checkout",
-          memberCode: memberCode.value || undefined,
-          barcode: barcode.value,
-          binId: binId.value || undefined,
-          selfCheckout: mode.value === "self-checkout",
-          note: note.value.trim() || undefined,
-        })
-      ).message;
+      const result = await apiService.inventoryTransaction({
+        action: mode.value === "checkin" ? "checkin" : "checkout",
+        memberCode: memberCode.value || undefined,
+        barcode: barcode.value,
+        binId: binId.value || undefined,
+        selfCheckout: mode.value === "self-checkout",
+        note: note.value.trim() || undefined,
+      });
+      message.value = result.message;
+      if (mode.value === "checkin") announceCheckin(result);
     }
     failed.value = false;
     const priorMode = mode.value;

@@ -7,6 +7,7 @@ import { withCORS } from '@/middleware/corsMiddleware'
 const itemSchema = z.object({
   barcode: z.string().trim().min(1),
   name: z.string().trim().min(1),
+  description: z.string().trim().max(2000).nullable().optional(),
   binId: z.string().nullable().optional(),
   binName: z.string().trim().min(1).optional(),
   room: z.string().trim().optional(),
@@ -58,7 +59,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
             category ||= await tx.inventoryCategory.create({ data: { name: categoryName } })
             categoryId = category.id
           }
-          created.push(await tx.inventoryItem.create({ data: { barcode: item.barcode, name: item.name, binId, categoryId }, include: { bin: true, category: true } }))
+          created.push(await tx.inventoryItem.create({ data: { barcode: item.barcode, name: item.name, description: item.description || null, binId, categoryId }, include: { bin: true, category: true } }))
         }
         return created
       })

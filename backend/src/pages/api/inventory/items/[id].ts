@@ -10,12 +10,12 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   const manager = req.user.role === 'ADMIN' || req.user.role === 'EXEC_BOARD'
   if (req.method === 'PUT') {
     if (!manager) return res.status(403).json({ error: 'Inventory manager access required' })
-    const parsed = z.object({ binId: z.string().nullable().optional(), categoryId: z.string().nullable().optional(), name: z.string().trim().min(1).optional(), markFound: z.literal(true).optional() }).refine(data => data.binId !== undefined || data.categoryId !== undefined || data.name !== undefined || data.markFound).safeParse(req.body)
+    const parsed = z.object({ binId: z.string().nullable().optional(), categoryId: z.string().nullable().optional(), name: z.string().trim().min(1).optional(), description: z.string().trim().max(2000).nullable().optional(), markFound: z.literal(true).optional() }).refine(data => data.binId !== undefined || data.categoryId !== undefined || data.name !== undefined || data.description !== undefined || data.markFound).safeParse(req.body)
     if (!parsed.success) return res.status(400).json({ error: 'Invalid location' })
     const existing = await prisma.inventoryItem.findUnique({ where: { id: id.data } })
     if (!existing) return res.status(404).json({ error: 'Item not found' })
-    const { markFound, ...changes } = parsed.data
-    const item = await prisma.inventoryItem.update({ where: { id: id.data }, data: { ...changes, ...(markFound ? { lostAt: null, lostNote: null } : {}) }, include: { bin: true, category: true } })
+    const { markFound, description, ...changes } = parsed.data
+    const item = await prisma.inventoryItem.update({ where: { id: id.data }, data: { ...changes, ...(description !== undefined ? { description: description || null } : {}), ...(markFound ? { lostAt: null, lostNote: null } : {}) }, include: { bin: true, category: true } })
     return res.status(200).json({ item })
   }
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })

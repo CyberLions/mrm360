@@ -8,6 +8,7 @@ export interface LocationItem {
   name: string;
   barcode: string;
   category: string | null;
+  description: string | null;
   status: LocationItemStatus;
 }
 
@@ -50,7 +51,7 @@ export class InventoryLocationManager {
         description: true,
         items: {
           orderBy: [{ name: 'asc' }, { barcode: 'asc' }],
-          select: { id: true, name: true, barcode: true, checkedOutToId: true, lostAt: true, category: { select: { name: true } } }
+          select: { id: true, name: true, barcode: true, description: true, checkedOutToId: true, lostAt: true, category: { select: { name: true } } }
         }
       }
     });
@@ -67,6 +68,7 @@ export class InventoryLocationManager {
         name: item.name,
         barcode: item.barcode,
         category: item.category?.name ?? null,
+        description: item.description,
         status: item.lostAt ? 'lost' : item.checkedOutToId === viewerId ? 'with-you' : item.checkedOutToId ? 'checked-out' : 'available'
       }))
     }));

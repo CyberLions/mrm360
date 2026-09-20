@@ -23,7 +23,7 @@ import type {
   WorkshopSeriesCreate,
   WorkshopSeriesUpdate,
   BadgeClass
-  , InventoryItem, InventoryBin, InventoryCategory, ItemLoan, InventoryLabelTemplate, InventoryLabelJobStatus, InventoryLocationSpec, InventoryLocationView
+  , InventoryItem, InventoryBin, InventoryCategory, ItemLoan, InventoryLabelTemplate, InventoryLabelJobStatus, InventoryLocationSpec, InventoryLocationView, InventoryTransactionResult
 } from '@/types/api'
 
 class ApiService {
@@ -318,7 +318,7 @@ class ApiService {
     return (await this.api.get('/inventory')).data
   }
 
-  async createInventoryItems(items: Array<{ barcode: string; name: string; binId?: string | null; binName?: string; room?: string; categoryId?: string | null; categoryName?: string }>): Promise<{ items: InventoryItem[] }> {
+  async createInventoryItems(items: Array<{ barcode: string; name: string; description?: string | null; binId?: string | null; binName?: string; room?: string; categoryId?: string | null; categoryName?: string }>): Promise<{ items: InventoryItem[] }> {
     return (await this.api.post('/inventory', { items })).data
   }
 
@@ -358,7 +358,7 @@ class ApiService {
     return (await this.api.get(`/inventory/items/${id}`)).data.item
   }
 
-  async updateInventoryItem(id: string, data: { binId?: string | null; categoryId?: string | null; name?: string }): Promise<InventoryItem> {
+  async updateInventoryItem(id: string, data: { binId?: string | null; categoryId?: string | null; name?: string; description?: string | null }): Promise<InventoryItem> {
     return (await this.api.put(`/inventory/items/${id}`, data)).data.item
   }
 
@@ -366,7 +366,7 @@ class ApiService {
     return this.updateInventoryItem(id, { binId })
   }
 
-  async inventoryTransaction(data: { action: 'checkout' | 'checkin'; barcode: string; memberCode?: string; binId?: string | null; selfCheckout?: boolean; note?: string }): Promise<{ message: string }> {
+  async inventoryTransaction(data: { action: 'checkout' | 'checkin'; barcode: string; memberCode?: string; binId?: string | null; selfCheckout?: boolean; note?: string }): Promise<InventoryTransactionResult> {
     return (await this.api.post('/inventory/transaction', data)).data
   }
 

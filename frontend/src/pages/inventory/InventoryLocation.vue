@@ -120,6 +120,12 @@
                     <span v-if="item.category">{{ item.category }} · </span
                     ><code>{{ item.barcode }}</code>
                   </p>
+                  <p
+                    v-if="item.description"
+                    class="mt-0.5 line-clamp-2 text-xs text-gray-400"
+                  >
+                    {{ item.description }}
+                  </p>
                 </div>
                 <span
                   class="flex-none rounded-full px-2.5 py-1 text-xs font-semibold"
@@ -192,7 +198,7 @@ const groups = computed(() => {
       ...bin,
       items: q
         ? bin.items.filter((i) =>
-            [i.name, i.barcode, i.category].some((v) =>
+            [i.name, i.barcode, i.category, i.description].some((v) =>
               v?.toLowerCase().includes(q),
             ),
           )

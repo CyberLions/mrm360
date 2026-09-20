@@ -395,6 +395,7 @@ model InventoryItem {
   id             String             @id @default(cuid())
   barcode        String             @unique
   name           String
+  description    String?
   binId          String?
   categoryId     String?
   checkedOutToId String?
@@ -420,6 +421,8 @@ model ItemLoan {
   userId       String
   checkedOutAt DateTime      @default(now())
   checkedInAt  DateTime?
+  /// Bin the item was in when it was checked out; where it goes back by default.
+  fromBinId    String?
   returnBinId  String?
   note         String?
   item         InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '@/models/prismaClient'
 import { AuthenticatedRequest, withAuth } from '@/middleware/authMiddleware'
 import { withCORS } from '@/middleware/corsMiddleware'
+import { lastKnownBinId, pickReturnBinId } from '@/utils/inventoryBins'
 import { sendItemCheckedInEmail, sendItemCheckedOutEmail } from '@/services/inventoryEmailService'
 
 const schema = z.object({
@@ -55,7 +56,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     const checkedOutAt = new Date()
     await prisma.$transaction([
       prisma.inventoryItem.update({ where: { id: item.id }, data: { checkedOutToId: user.id, binId: null, lostAt: null, lostNote: null } }),
-      prisma.itemLoan.create({ data: { itemId: item.id, userId: user.id, checkedOutAt, note: note || null } })
+      prisma.itemLoan.create({ data: { itemId: item.id, userId: user.id, checkedOutAt, fromBinId: item.binId, note: note || null } })
     ])
     await sendItemCheckedOutEmail(user, item, checkedOutAt)
     return res.status(200).json({ message: `${item.name} checked out to ${user.displayName || `${user.firstName} ${user.lastName}`}` })
@@ -63,18 +64,33 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 
   if (!item.checkedOutToId) return res.status(409).json({ error: 'Item is not checked out' })
   const checkedInAt = new Date()
-  const returnBin = binId ? await prisma.inventoryBin.findUnique({ where: { id: binId } }) : null
+
+  // Checking out clears the item's bin, so the last one comes from the loan (or, for older
+  // loans that predate that, the previous return).
+  const [openLoan, lastReturn] = await Promise.all([
+    prisma.itemLoan.findFirst({ where: { itemId: item.id, checkedInAt: null }, orderBy: { checkedOutAt: 'desc' }, select: { fromBinId: true } }),
+    prisma.itemLoan.findFirst({ where: { itemId: item.id, returnBinId: { not: null } }, orderBy: { checkedInAt: 'desc' }, select: { returnBinId: true } })
+  ])
+  const memory = { fromBinId: openLoan?.fromBinId, lastReturnBinId: lastReturn?.returnBinId, currentBinId: item.binId }
+  const [lastBin, returnBin] = await Promise.all(
+    [lastKnownBinId(memory), pickReturnBinId({ requested: binId, ...memory })].map(id =>
+      // A bin may have been deleted since; treat that as "no bin".
+      id ? prisma.inventoryBin.findUnique({ where: { id }, select: { id: true, name: true, room: true, shelf: true } }) : null
+    )
+  )
+
   await prisma.$transaction([
-    prisma.inventoryItem.update({ where: { id: item.id }, data: { checkedOutToId: null, binId: binId !== undefined ? binId : item.binId, lostAt: null, lostNote: null } }),
+    prisma.inventoryItem.update({ where: { id: item.id }, data: { checkedOutToId: null, binId: returnBin?.id ?? null, lostAt: null, lostNote: null } }),
     prisma.itemLoan.updateMany({
       where: { itemId: item.id, checkedInAt: null },
-      data: { checkedInAt, returnBinId: binId, ...(note ? { note } : {}) }
+      data: { checkedInAt, returnBinId: returnBin?.id ?? null, ...(note ? { note } : {}) }
     })
   ])
   if (item.checkedOutTo) {
     await sendItemCheckedInEmail(item.checkedOutTo, item, checkedInAt, returnBin?.name)
   }
-  return res.status(200).json({ message: `${item.name} checked in` })
+  // Extra fields let the kiosk show where the item was and where it is now.
+  return res.status(200).json({ message: `${item.name} checked in`, itemId: item.id, itemName: item.name, bin: returnBin, lastBin })
 }
 
 export default withCORS(withAuth(handler))

@@ -23,6 +23,12 @@
           >
         </div>
         <code class="text-gray-400">{{ item.barcode }}</code>
+        <p
+          v-if="item.description"
+          class="mt-3 max-w-2xl whitespace-pre-line text-gray-300"
+        >
+          {{ item.description }}
+        </p>
       </div>
       <div class="flex gap-2">
         <IconButton
