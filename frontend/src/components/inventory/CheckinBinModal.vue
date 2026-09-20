@@ -47,6 +47,21 @@
       </div>
 
       <label
+        v-if="!bulk"
+        class="flex cursor-pointer items-start gap-3 rounded-xl border-2 border-amber-400 bg-amber-500/15 p-3 text-base font-semibold text-amber-200"
+        data-test="confirm-label"
+      >
+        <input
+          v-model="confirmed"
+          type="checkbox"
+          required
+          data-test="confirm-checkbox"
+          class="mt-0.5 h-6 w-6 flex-none rounded border-amber-300 bg-gray-900 text-amber-500 focus:ring-amber-400"
+        />
+        <span>{{ CONFIRMATION }}</span>
+      </label>
+
+      <label
         class="flex cursor-pointer items-start gap-3 rounded-xl border border-gray-700 p-3 text-sm text-gray-300"
       >
         <input
@@ -59,6 +74,11 @@
           <span class="block text-gray-400"
             >Skip this popup and show a quick notice for each item instead.</span
           >
+          <span
+            class="mt-2 block rounded-lg border border-amber-400 bg-amber-500/15 p-2 font-semibold text-amber-200"
+            data-test="bulk-notice"
+            >{{ BULK_NOTICE }}</span
+          >
         </span>
       </label>
 
@@ -69,7 +89,8 @@
       <div class="grid grid-cols-2 gap-3">
         <button
           type="button"
-          class="min-h-12 touch-manipulation rounded-xl bg-gray-700 px-4 py-3 font-medium text-white hover:bg-gray-600"
+          class="min-h-12 touch-manipulation rounded-xl bg-gray-700 px-4 py-3 font-medium text-white hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
+          :disabled="!acknowledged"
           @click="$emit('close', bulk)"
         >
           Keep {{ result.place ? "there" : "as is" }}
@@ -77,7 +98,7 @@
         <button
           type="button"
           class="min-h-12 touch-manipulation rounded-xl bg-blue-600 px-4 py-3 font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
-          :disabled="unchanged || saving"
+          :disabled="unchanged || saving || !acknowledged"
           @click="$emit('move', parsePlaceValue(selected), bulk)"
         >
           {{ saving ? "Moving…" : "Move" }}
@@ -122,6 +143,14 @@ const currentValue = () =>
   props.result.place ? `${props.result.place.kind}:${props.result.place.id}` : "";
 const selected = ref(currentValue());
 const bulk = ref(!!props.bulkOn);
+// Single check-in must be confirmed before the popup can be dismissed. Bulk mode skips the
+// per-item popup, so it isn't asked here; its notice sits under the bulk toggle instead.
+const CONFIRMATION =
+  "I have placed all cables, accessories and items, and returned this item in the same condition I checked it out.";
+const BULK_NOTICE =
+  "Bulk check-in confirms this for every item: you have placed all cables, accessories and items, and returned each one in the same condition you checked it out.";
+const confirmed = ref(false);
+const acknowledged = computed(() => bulk.value || confirmed.value);
 const unchanged = computed(() => selected.value === currentValue());
 </script>
 
