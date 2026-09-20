@@ -1,0 +1,21 @@
+/*
+ * Native dropdown menus take their colours from the <select>. Fields here use translucent
+ * backgrounds (e.g. bg-gray-700/50), which the menu renders as a grey panel with light text,
+ * so give the menu itself solid dark colours.
+ */
+select {
+  color-scheme: dark;
+}
+select option,
+select optgroup {
+  background-color: #111827;
+  color: #f3f4f6;
+}
+select option:checked {
+  background-color: #2563eb;
+  color: #ffffff;
+}
+select optgroup {
+  color: #9ca3af;
+  font-weight: 600;
+}

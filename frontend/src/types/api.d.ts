@@ -40,14 +40,21 @@ export interface UserPaymentStatus {
 }
 
 export interface InventoryBin { id: string; name: string; room?: string; shelf?: string; code?: string; description?: string; _count?: { items: number } }
+export interface InventoryRoom { id: string; name: string; description?: string | null; binCount?: number; _count?: { shelves: number; items: number } }
+export interface InventoryShelf { id: string; name: string; roomId?: string | null; room?: { id: string; name: string } | null; description?: string | null; binCount?: number; _count?: { items: number } }
 export interface InventoryCategory { id: string; name: string; description?: string; _count?: { items: number } }
 export interface InventoryItem {
   id: string
   barcode: string
   name: string
   description?: string | null
-  binId?: string
-  bin?: InventoryBin
+  /** An item is in at most one place: a bin, directly on a shelf, or directly in a room. */
+  binId?: string | null
+  bin?: InventoryBin | null
+  shelfId?: string | null
+  shelf?: InventoryShelf | null
+  roomId?: string | null
+  room?: InventoryRoom | null
   categoryId?: string
   category?: InventoryCategory
   lostAt?: string | null
@@ -58,16 +65,19 @@ export interface InventoryItem {
   createdAt?: string
   updatedAt?: string
 }
-export interface InventoryBinRef { id: string; name: string; room: string | null; shelf: string | null }
+/** The ids of where something is; at most one is set, and all null means "nowhere". */
+export interface InventoryPlaceIds { binId: string | null; shelfId: string | null; roomId: string | null }
+/** A bin, shelf or room resolved for display. */
+export interface InventoryPlaceRef { kind: 'bin' | 'shelf' | 'room'; id: string; name: string; room: string | null; shelf: string | null }
 /** Response to a check-in/check-out; the extra fields are set on check-in. */
 export interface InventoryTransactionResult {
   message: string
   itemId?: string
   itemName?: string
   /** Where the item is now. */
-  bin?: InventoryBinRef | null
+  place?: InventoryPlaceRef | null
   /** Where it was before it was checked out. */
-  lastBin?: InventoryBinRef | null
+  lastPlace?: InventoryPlaceRef | null
 }
 export interface InventoryLocationSpec { room: string | null; shelf: string | null; binId?: string | null }
 export interface InventoryLocationItem {
@@ -78,6 +88,7 @@ export interface InventoryLocationItem {
   description: string | null
   status: 'available' | 'checked-out' | 'with-you' | 'lost'
 }
+export interface InventoryLocationDirectItem extends InventoryLocationItem { shelf: string | null }
 export interface InventoryLocationBin { id: string; name: string; shelf: string | null; code: string | null; description: string | null; items: InventoryLocationItem[] }
 export interface InventoryLocationView {
   room: string | null
@@ -85,6 +96,8 @@ export interface InventoryLocationView {
   /** Set when the view is a single bin. */
   binId: string | null
   bins: InventoryLocationBin[]
+  /** Items on this shelf, or (room view) in the room or on its shelves, outside any bin. */
+  directItems: InventoryLocationDirectItem[]
   totals: { items: number; available: number }
 }
 export interface InventoryLabelTemplate { id: string; name: string; description: string; widthIn: number; heightIn: number; dpi: number }
@@ -103,7 +116,7 @@ export interface ItemLoan {
   returnBinId?: string
   note?: string
   item: InventoryItem
-  returnBin?: InventoryBin
+  returnPlace?: InventoryPlaceRef | null
   user?: { id: string; firstName: string; lastName: string; displayName?: string }
 }
 

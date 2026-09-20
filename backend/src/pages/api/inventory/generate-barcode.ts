@@ -7,7 +7,9 @@ import { generateItemBarcode } from '@/utils/barcodeGenerator'
 
 const bodySchema = z.object({
   name: z.string().trim().max(200).optional(),
-  categoryId: z.string().trim().max(100).nullable().optional()
+  categoryId: z.string().trim().max(100).nullable().optional(),
+  // A category that doesn't exist yet (typed into the add-item form) still shapes the code.
+  categoryName: z.string().trim().max(100).optional()
 })
 
 // Random part grows on repeated collisions so a crowded category/title prefix still succeeds.
@@ -21,11 +23,12 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 
   const parsed = bodySchema.safeParse(req.body ?? {})
   if (!parsed.success) return res.status(400).json({ error: 'Invalid request' })
-  const { name, categoryId } = parsed.data
+  const { name, categoryId, categoryName } = parsed.data
   const category = categoryId ? await prisma.inventoryCategory.findUnique({ where: { id: categoryId }, select: { name: true } }) : null
+  const categoryLabel = category?.name ?? categoryName
 
   for (const length of RANDOM_LENGTHS) {
-    const barcode = generateItemBarcode({ name, category: category?.name }, length)
+    const barcode = generateItemBarcode({ name, category: categoryLabel }, length)
     const exists = await prisma.inventoryItem.findUnique({ where: { barcode }, select: { id: true } })
     if (!exists) return res.status(200).json({ barcode })
   }

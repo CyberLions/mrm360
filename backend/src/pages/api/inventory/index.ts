@@ -3,12 +3,16 @@ import { z } from 'zod'
 import { prisma } from '@/models/prismaClient'
 import { AuthenticatedRequest, withAuth } from '@/middleware/authMiddleware'
 import { withCORS } from '@/middleware/corsMiddleware'
+import { InventoryPlaceManager } from '@/managers/inventoryPlaceManager'
+import { hasPlace, toPlace } from '@/utils/inventoryPlace'
 
 const itemSchema = z.object({
   barcode: z.string().trim().min(1),
   name: z.string().trim().min(1),
   description: z.string().trim().max(2000).nullable().optional(),
   binId: z.string().nullable().optional(),
+  shelfId: z.string().nullable().optional(),
+  roomId: z.string().nullable().optional(),
   binName: z.string().trim().min(1).optional(),
   room: z.string().trim().optional(),
   categoryId: z.string().nullable().optional(),
@@ -20,11 +24,14 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 
   if (req.method === 'GET') {
     const where = isManager ? {} : { checkedOutToId: req.user.id }
-    const [items, bins, categories] = await Promise.all([
+    const places = new InventoryPlaceManager()
+    const [items, bins, rooms, shelves, categories] = await Promise.all([
       prisma.inventoryItem.findMany({
         where,
         include: {
           bin: true,
+          shelf: { include: { room: { select: { id: true, name: true } } } },
+          room: true,
           category: true,
           checkedOutTo: { select: { id: true, email: true, firstName: true, lastName: true, displayName: true } },
           loans: { select: { checkedOutAt: true, checkedInAt: true }, orderBy: { checkedOutAt: 'desc' }, take: 1 }
@@ -32,9 +39,11 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
         orderBy: [{ name: 'asc' }, { barcode: 'asc' }]
       }),
       isManager ? prisma.inventoryBin.findMany({ orderBy: [{ room: 'asc' }, { name: 'asc' }] }) : Promise.resolve([]),
+      isManager ? places.listRooms() : Promise.resolve([]),
+      isManager ? places.listShelves() : Promise.resolve([]),
       isManager ? prisma.inventoryCategory.findMany({ orderBy: { name: 'asc' } }) : Promise.resolve([])
     ])
-    return res.status(200).json({ items, bins, categories, canManage: isManager })
+    return res.status(200).json({ items, bins, rooms, shelves, categories, canManage: isManager })
   }
 
   if (req.method === 'POST') {
@@ -42,15 +51,19 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
     const parsed = z.object({ items: z.array(itemSchema).min(1).max(500) }).safeParse(req.body)
     if (!parsed.success) return res.status(400).json({ error: 'Invalid items', details: parsed.error.flatten() })
 
+    const places = parsed.data.items.map(item => toPlace(item))
+    if (places.some(place => !place)) return res.status(400).json({ error: 'An item can only be in one bin, shelf or room' })
     try {
+      for (const place of places) await new InventoryPlaceManager().assertPlaceExists(place!)
       const items = await prisma.$transaction(async tx => {
         const created = []
-        for (const input of parsed.data.items) {
+        for (const [index, input] of parsed.data.items.entries()) {
           const { binName, room, categoryName, ...item } = input
-          let binId = item.binId
-          if (!binId && binName) {
+          const place = places[index]!
+          let binId = place.binId
+          if (!hasPlace(place) && binName) {
             let bin = await tx.inventoryBin.findFirst({ where: { name: { equals: binName, mode: 'insensitive' }, ...(room ? { room: { equals: room, mode: 'insensitive' } } : {}) } })
-            bin ||= await tx.inventoryBin.create({ data: { name: binName, room: room || null } })
+            bin ||= await tx.inventoryBin.create({ data: { name: binName, ...(await new InventoryPlaceManager().canonicalizeBinLocation({ room }, tx)) } })
             binId = bin.id
           }
           let categoryId = item.categoryId
@@ -59,12 +72,13 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
             category ||= await tx.inventoryCategory.create({ data: { name: categoryName } })
             categoryId = category.id
           }
-          created.push(await tx.inventoryItem.create({ data: { barcode: item.barcode, name: item.name, description: item.description || null, binId, categoryId }, include: { bin: true, category: true } }))
+          created.push(await tx.inventoryItem.create({ data: { barcode: item.barcode, name: item.name, description: item.description || null, binId, shelfId: place.shelfId, roomId: place.roomId, categoryId }, include: { bin: true, shelf: true, room: true, category: true } }))
         }
         return created
       })
       return res.status(201).json({ items })
     } catch (error: any) {
+      if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message })
       if (error?.code === 'P2002') return res.status(409).json({ error: 'Each barcode must be unique' })
       throw error
     }

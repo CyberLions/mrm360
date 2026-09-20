@@ -380,6 +380,37 @@ model InventoryBin {
   @@map("inventory_bins")
 }
 
+/// Registry of rooms. Bins reference their room by name (InventoryBin.room), so renaming a
+/// room here also renames it on those bins (see InventoryPlaceManager).
+model InventoryRoom {
+  id          String           @id @default(cuid())
+  name        String           @unique
+  description String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  shelves     InventoryShelf[]
+  items       InventoryItem[]
+
+  @@map("inventory_rooms")
+}
+
+/// Registry of shelves. Bins reference their shelf by name within their room, kept in sync
+/// by InventoryPlaceManager. A shelf may exist without a room.
+model InventoryShelf {
+  id          String          @id @default(cuid())
+  name        String
+  roomId      String?
+  description String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  room        InventoryRoom?  @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  items       InventoryItem[]
+
+  @@unique([roomId, name])
+  @@index([roomId])
+  @@map("inventory_shelves")
+}
+
 model InventoryCategory {
   id          String          @id @default(cuid())
   name        String          @unique
@@ -396,7 +427,10 @@ model InventoryItem {
   barcode        String             @unique
   name           String
   description    String?
+  /// An item lives in at most one place: a bin, directly on a shelf, or directly in a room.
   binId          String?
+  shelfId        String?
+  roomId         String?
   categoryId     String?
   checkedOutToId String?
   lostAt         DateTime?
@@ -404,29 +438,37 @@ model InventoryItem {
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
   bin            InventoryBin?      @relation(fields: [binId], references: [id], onDelete: SetNull)
+  shelf          InventoryShelf?    @relation(fields: [shelfId], references: [id], onDelete: SetNull)
+  room           InventoryRoom?     @relation(fields: [roomId], references: [id], onDelete: SetNull)
   category       InventoryCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   checkedOutTo   User?              @relation(fields: [checkedOutToId], references: [id], onDelete: SetNull)
   loans          ItemLoan[]
 
   @@index([name])
   @@index([binId])
+  @@index([shelfId])
+  @@index([roomId])
   @@index([categoryId])
   @@index([checkedOutToId])
   @@map("inventory_items")
 }
 
 model ItemLoan {
-  id           String        @id @default(cuid())
-  itemId       String
-  userId       String
-  checkedOutAt DateTime      @default(now())
-  checkedInAt  DateTime?
-  /// Bin the item was in when it was checked out; where it goes back by default.
-  fromBinId    String?
-  returnBinId  String?
-  note         String?
-  item         InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id            String        @id @default(cuid())
+  itemId        String
+  userId        String
+  checkedOutAt  DateTime      @default(now())
+  checkedInAt   DateTime?
+  /// Where the item was (a bin, shelf or room) when it was checked out; where it goes back by default.
+  fromBinId     String?
+  fromShelfId   String?
+  fromRoomId    String?
+  returnBinId   String?
+  returnShelfId String?
+  returnRoomId  String?
+  note          String?
+  item          InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([itemId, checkedInAt])
   @@index([userId, checkedInAt])

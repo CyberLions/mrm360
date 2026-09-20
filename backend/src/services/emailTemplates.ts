@@ -224,7 +224,7 @@ export const emailTemplates = {
       subject: `Lost item reported: ${data.itemName}`,
       html: baseLayout(`
         <h2>Item reported lost</h2>
-        <p>Hi ${escapeHtml(data.userName)}, someone used the lost-item page to report the following item as lost.</p>
+        <p>Someone used the lost-item page to report the following item as lost.</p>
         ${lostItemDetailsBlock(data)}
         <p><span class="badge badge-declined">Reported Lost</span></p>
         ${data.itemUrl ? `<p><a href="${escapeHtml(data.itemUrl)}">View the item in MRM360</a></p>` : ''}

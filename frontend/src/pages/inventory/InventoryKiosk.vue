@@ -102,13 +102,15 @@
             />
           </div>
           <div>
-            <label class="label">Bin</label
-            ><select v-model="binId" class="field">
-              <option value="">No bin</option>
-              <option v-for="bin in bins" :key="bin.id" :value="bin.id">
-                {{ binLabel(bin) }}
-              </option>
-            </select>
+            <label class="label">Location</label
+            ><PlaceSelect
+              v-model="place"
+              class="field"
+              empty-label="No location"
+              :bins="bins"
+              :shelves="shelves"
+              :rooms="rooms"
+            />
           </div>
           <div>
             <label class="label">Category</label
@@ -217,13 +219,15 @@
             />
           </div>
           <div>
-            <label class="label">Bin</label
-            ><select v-model="binId" class="field">
-              <option value="">No bin</option>
-              <option v-for="bin in bins" :key="bin.id" :value="bin.id">
-                {{ binLabel(bin) }}
-              </option>
-            </select>
+            <label class="label">Location</label
+            ><PlaceSelect
+              v-model="place"
+              class="field"
+              empty-label="No location"
+              :bins="bins"
+              :shelves="shelves"
+              :rooms="rooms"
+            />
           </div>
           <div>
             <label class="label">Category</label
@@ -269,13 +273,15 @@
         <option v-for="n in names" :key="n" :value="n" />
       </datalist>
       <div v-if="mode === 'checkin'">
-        <label class="label">Return bin</label
-        ><select v-model="binId" class="field">
-          <option value="">Its last bin (default)</option>
-          <option v-for="bin in bins" :key="bin.id" :value="bin.id">
-            {{ binLabel(bin) }}
-          </option>
-        </select>
+        <label class="label">Return to</label
+        ><PlaceSelect
+          v-model="place"
+          class="field"
+          empty-label="Its last location (default)"
+          :bins="bins"
+          :shelves="shelves"
+          :rooms="rooms"
+        />
         <label
           class="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-gray-700 p-3 text-sm text-gray-300"
         >
@@ -287,8 +293,8 @@
           <span>
             <strong class="text-gray-100">Bulk check-in</strong>
             <span class="block text-gray-400"
-              >Show a quick notice with each item's bin instead of a popup.
-              Pick a return bin above to put the whole batch in one place.</span
+              >Show a quick notice with each item's location instead of a popup.
+              Pick a return location above to put the whole batch in one place.</span
             >
           </span>
         </label>
@@ -319,6 +325,8 @@
       v-if="checkinResult"
       :result="checkinResult"
       :bins="bins"
+      :shelves="shelves"
+      :rooms="rooms"
       :bulk-on="bulkCheckin"
       :saving="moving"
       :error="moveError"
@@ -333,8 +341,10 @@ import apiService from "@/services/api";
 import { useAuthStore } from "@/stores/authStore";
 import CameraCodeScanner from "@/components/inventory/CameraCodeScanner.vue";
 import CheckinBinModal from "@/components/inventory/CheckinBinModal.vue";
+import PlaceSelect from "@/components/inventory/PlaceSelect.vue";
 import { useToast } from "vue-toastification";
-import { binLabel as formatBin } from "@/utils/binLabel";
+import { placeLabel } from "@/utils/binLabel";
+import { parsePlaceValue } from "@/utils/place";
 import {
   ArrowLeftOnRectangleIcon,
   ArrowPathIcon,
@@ -350,6 +360,9 @@ import type {
   InventoryBin,
   InventoryCategory,
   InventoryItem,
+  InventoryPlaceIds,
+  InventoryRoom,
+  InventoryShelf,
   InventoryTransactionResult,
 } from "@/types/api";
 type Mode = "self-checkout" | "bulk-checkout" | "checkin" | "quick-add";
@@ -378,7 +391,7 @@ const mode = ref<Mode>("self-checkout"),
   selectedMember = ref<any | null>(null),
   barcode = ref(""),
   name = ref(""),
-  binId = ref(""),
+  place = ref(""),
   categoryId = ref(""),
   eventId = ref(""),
   note = ref(""),
@@ -386,6 +399,8 @@ const mode = ref<Mode>("self-checkout"),
   failed = ref(false),
   submitting = ref(false),
   bins = ref<InventoryBin[]>([]),
+  shelves = ref<InventoryShelf[]>([]),
+  rooms = ref<InventoryRoom[]>([]),
   categories = ref<InventoryCategory[]>([]),
   inventoryItems = ref<InventoryItem[]>([]),
   names = ref<string[]>([]),
@@ -411,12 +426,6 @@ const suggestedItems = computed(() =>
     ? inventoryItems.value.filter((item) => item.checkedOutToId)
     : inventoryItems.value.filter((item) => !item.checkedOutToId),
 );
-const binLabel = (bin: InventoryBin) => {
-  const parts = [bin.room, bin.shelf ? `Shelf ${bin.shelf}` : ""].filter(
-    Boolean,
-  );
-  return parts.length ? `${parts.join(" · ")} · ${bin.name}` : bin.name;
-};
 function focusBarcode() {
   barcodeInput.value?.focus();
 }
@@ -429,7 +438,7 @@ function reset() {
     memberQuery.value =
     barcode.value =
     name.value =
-    binId.value =
+    place.value =
     categoryId.value =
     message.value =
       "";
@@ -510,7 +519,7 @@ function showError(e: any) {
 function announceCheckin(result: InventoryTransactionResult) {
   if (!result.itemId) return;
   if (bulkCheckin.value) {
-    toast.success(`${result.itemName} → ${formatBin(result.bin)}`);
+    toast.success(`${result.itemName} → ${placeLabel(result.place)}`);
   } else {
     moveError.value = "";
     checkinResult.value = result;
@@ -522,21 +531,34 @@ function finishCheckin(bulk: boolean) {
   moveError.value = "";
   reset();
 }
-async function moveCheckedInItem(newBinId: string | null, bulk: boolean) {
+async function moveCheckedInItem(newPlace: InventoryPlaceIds, bulk: boolean) {
   const result = checkinResult.value;
   if (!result?.itemId || moving.value) return;
   moving.value = true;
   moveError.value = "";
   try {
-    await apiService.moveInventoryItem(result.itemId, newBinId);
-    const target = bins.value.find((bin) => bin.id === newBinId);
-    toast.success(`${result.itemName} moved to ${formatBin(target)}`);
+    await apiService.moveInventoryItem(result.itemId, newPlace);
+    toast.success(`${result.itemName} moved to ${describePlace(newPlace)}`);
     finishCheckin(bulk);
   } catch (e: any) {
     moveError.value = e.response?.data?.error || "Could not move the item";
   } finally {
     moving.value = false;
   }
+}
+function describePlace(target: InventoryPlaceIds) {
+  const bin = bins.value.find((b) => b.id === target.binId);
+  const shelf = shelves.value.find((sh) => sh.id === target.shelfId);
+  const room = rooms.value.find((r) => r.id === target.roomId);
+  return placeLabel(
+    bin
+      ? { kind: "bin", ...bin }
+      : shelf
+        ? { kind: "shelf", name: shelf.name, room: shelf.room?.name }
+        : room
+          ? { kind: "room", name: room.name }
+          : null,
+  );
 }
 async function submit() {
   // Ignore scans that arrive while the check-in popup is open.
@@ -551,7 +573,7 @@ async function submit() {
         {
           name: name.value,
           barcode: barcode.value,
-          binId: binId.value || null,
+          ...parsePlaceValue(place.value),
           categoryId: categoryId.value || null,
         },
       ]);
@@ -562,7 +584,8 @@ async function submit() {
         action: mode.value === "checkin" ? "checkin" : "checkout",
         memberCode: memberCode.value || undefined,
         barcode: barcode.value,
-        binId: binId.value || undefined,
+        // No place means "back where it came from"; only an explicit choice is sent.
+        ...(place.value ? parsePlaceValue(place.value) : {}),
         selfCheckout: mode.value === "self-checkout",
         note: note.value.trim() || undefined,
       });
@@ -604,6 +627,8 @@ function formatEventDate(value: string) {
 onMounted(async () => {
   const d = await apiService.getInventory();
   bins.value = d.bins;
+  shelves.value = d.shelves;
+  rooms.value = d.rooms;
   categories.value = d.categories;
   inventoryItems.value = d.items;
   names.value = [...new Set(d.items.map((i) => i.name))];

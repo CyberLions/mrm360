@@ -4,7 +4,7 @@ import { emailTemplates } from '../services/emailTemplates';
 describe('itemReportedLost template', () => {
   it('escapes text typed by the anonymous reporter', () => {
     const { subject, html } = emailTemplates.itemReportedLost({
-      userName: 'Ellie',
+      userName: '',
       itemName: 'Multimeter',
       itemBarcode: 'ITEM-1',
       transactionDate: 'today',
@@ -20,7 +20,7 @@ describe('itemReportedLost template', () => {
 
   it('omits optional rows that were not provided', () => {
     const { html } = emailTemplates.itemReportedLost({
-      userName: 'Ellie',
+      userName: '',
       itemName: 'Multimeter',
       itemBarcode: 'ITEM-1',
       transactionDate: 'today',

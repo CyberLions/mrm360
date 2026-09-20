@@ -20,27 +20,30 @@
 
       <dl class="space-y-2 rounded-xl bg-gray-950 p-4 text-sm">
         <div class="flex justify-between gap-4">
-          <dt class="text-gray-400">Last bin</dt>
+          <dt class="text-gray-400">Last location</dt>
           <dd class="text-right font-medium text-gray-100" data-test="last-bin">
-            {{ binLabel(result.lastBin, "Unknown") }}
+            {{ placeLabel(result.lastPlace, "Unknown") }}
           </dd>
         </div>
         <div class="flex justify-between gap-4">
           <dt class="text-gray-400">Now in</dt>
           <dd class="text-right font-medium text-green-300" data-test="now-bin">
-            {{ binLabel(result.bin) }}
+            {{ placeLabel(result.place, "Unassigned") }}
           </dd>
         </div>
       </dl>
 
       <div>
-        <label for="checkin-new-bin" class="label">Move to a different bin</label>
-        <select id="checkin-new-bin" v-model="selected" class="field">
-          <option value="">No bin</option>
-          <option v-for="bin in bins" :key="bin.id" :value="bin.id">
-            {{ binLabel(bin) }}
-          </option>
-        </select>
+        <label for="checkin-new-bin" class="label">Move to a different location</label>
+        <PlaceSelect
+          id="checkin-new-bin"
+          v-model="selected"
+          class="field"
+          empty-label="No location"
+          :bins="bins"
+          :shelves="shelves"
+          :rooms="rooms"
+        />
       </div>
 
       <label
@@ -69,13 +72,13 @@
           class="min-h-12 touch-manipulation rounded-xl bg-gray-700 px-4 py-3 font-medium text-white hover:bg-gray-600"
           @click="$emit('close', bulk)"
         >
-          Keep {{ result.bin ? "there" : "as is" }}
+          Keep {{ result.place ? "there" : "as is" }}
         </button>
         <button
           type="button"
           class="min-h-12 touch-manipulation rounded-xl bg-blue-600 px-4 py-3 font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
           :disabled="unchanged || saving"
-          @click="$emit('move', selected || null, bulk)"
+          @click="$emit('move', parsePlaceValue(selected), bulk)"
         >
           {{ saving ? "Moving…" : "Move" }}
         </button>
@@ -87,12 +90,22 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { CheckCircleIcon } from "@heroicons/vue/24/outline";
-import { binLabel } from "@/utils/binLabel";
-import type { InventoryBin, InventoryTransactionResult } from "@/types/api";
+import PlaceSelect from "@/components/inventory/PlaceSelect.vue";
+import { placeLabel } from "@/utils/binLabel";
+import { parsePlaceValue } from "@/utils/place";
+import type {
+  InventoryBin,
+  InventoryPlaceIds,
+  InventoryRoom,
+  InventoryShelf,
+  InventoryTransactionResult,
+} from "@/types/api";
 
 const props = defineProps<{
   result: InventoryTransactionResult;
   bins: InventoryBin[];
+  shelves?: InventoryShelf[];
+  rooms?: InventoryRoom[];
   /** Whether bulk mode is already on when the popup opens. */
   bulkOn?: boolean;
   saving?: boolean;
@@ -101,13 +114,15 @@ const props = defineProps<{
 defineEmits<{
   /** Dismiss and keep the item where it is. */
   close: [bulk: boolean];
-  /** Move the item to this bin (null = no bin). */
-  move: [binId: string | null, bulk: boolean];
+  /** Move the item to this place (all ids null = no location). */
+  move: [place: InventoryPlaceIds, bulk: boolean];
 }>();
 
-const selected = ref(props.result.bin?.id ?? "");
+const currentValue = () =>
+  props.result.place ? `${props.result.place.kind}:${props.result.place.id}` : "";
+const selected = ref(currentValue());
 const bulk = ref(!!props.bulkOn);
-const unchanged = computed(() => selected.value === (props.result.bin?.id ?? ""));
+const unchanged = computed(() => selected.value === currentValue());
 </script>
 
 <style scoped>

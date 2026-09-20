@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockFindMany } = vi.hoisted(() => ({ mockFindMany: vi.fn() }));
-vi.mock('@/models/prismaClient', () => ({ prisma: { inventoryBin: { findMany: mockFindMany } } }));
+const { mockFindMany, mockItems, mockRoom, mockShelf } = vi.hoisted(() => ({ mockFindMany: vi.fn(), mockItems: vi.fn(), mockRoom: vi.fn(), mockShelf: vi.fn() }));
+vi.mock('@/models/prismaClient', () => ({
+  prisma: { inventoryBin: { findMany: mockFindMany }, inventoryItem: { findMany: mockItems }, inventoryRoom: { findFirst: mockRoom }, inventoryShelf: { findFirst: mockShelf } }
+}));
 
 import { InventoryLocationManager } from '../managers/inventoryLocationManager';
 
@@ -17,7 +19,12 @@ const bin = (over: Record<string, unknown> = {}) => ({
 });
 
 describe('InventoryLocationManager', () => {
-  beforeEach(() => mockFindMany.mockReset());
+  beforeEach(() => {
+    for (const mock of [mockFindMany, mockItems, mockRoom, mockShelf]) mock.mockReset();
+    mockItems.mockResolvedValue([]);
+    mockRoom.mockResolvedValue(null);
+    mockShelf.mockResolvedValue(null);
+  });
   const manager = new InventoryLocationManager();
 
   it('queries a shelf by room + shelf', async () => {
@@ -56,8 +63,37 @@ describe('InventoryLocationManager', () => {
     expect(result.bins).toHaveLength(1);
   });
 
-  it('404s when the location has no bins', async () => {
+  it('404s when the location is unknown', async () => {
     mockFindMany.mockResolvedValue([]);
     await expect(manager.getLocation({ room: 'Nope', shelf: null }, 'viewer')).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('shows a registered room or shelf even when it is empty', async () => {
+    mockFindMany.mockResolvedValue([]);
+    mockRoom.mockResolvedValue({ id: 'r1' });
+    await expect(manager.getLocation({ room: 'Lab 1', shelf: null }, 'viewer')).resolves.toMatchObject({ bins: [], directItems: [], totals: { items: 0, available: 0 } });
+    mockShelf.mockResolvedValue({ id: 's1' });
+    await expect(manager.getLocation({ room: 'Lab 1', shelf: '2' }, 'viewer')).resolves.toMatchObject({ shelf: '2', directItems: [] });
+  });
+
+  it('includes items placed straight on a shelf or in a room, and counts them in the totals', async () => {
+    mockFindMany.mockResolvedValue([]);
+    mockItems.mockResolvedValue([
+      { id: 'd1', name: 'Monitor', barcode: 'MON-1', description: null, checkedOutToId: null, lostAt: null, category: null, shelf: { name: '2' } },
+      { id: 'd2', name: 'Whiteboard', barcode: 'WB-1', description: null, checkedOutToId: 'someone', lostAt: null, category: null, shelf: null }
+    ]);
+    const room = await manager.getLocation({ room: 'Lab 1', shelf: null }, 'viewer');
+    expect(mockItems.mock.calls[0][0].where).toEqual({ OR: [{ room: { name: 'Lab 1' } }, { shelf: { room: { name: 'Lab 1' } } }] });
+    expect(room.directItems.map(i => [i.name, i.shelf, i.status])).toEqual([['Monitor', '2', 'available'], ['Whiteboard', null, 'checked-out']]);
+    expect(room.totals).toEqual({ items: 2, available: 1 });
+
+    await manager.getLocation({ room: 'Lab 1', shelf: '2' }, 'viewer');
+    expect(mockItems.mock.calls[1][0].where).toEqual({ shelf: { name: '2', room: { name: 'Lab 1' } } });
+  });
+
+  it('does not look for direct items in a single-bin view', async () => {
+    mockFindMany.mockResolvedValue([bin()]);
+    await manager.getLocation({ room: null, shelf: null, binId: 'b1' }, 'viewer');
+    expect(mockItems).not.toHaveBeenCalled();
   });
 });

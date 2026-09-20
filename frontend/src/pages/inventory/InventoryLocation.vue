@@ -33,7 +33,7 @@
             <span class="badge">2</span>
             <span
               ><strong class="text-gray-100">Check in:</strong> put the item
-              back in its bin, then scan it at the kiosk under
+              back where you found it, then scan it at the kiosk under
               <em>Check In</em>.</span
             >
           </li>
@@ -84,6 +84,12 @@
           />
         </div>
 
+        <p
+          v-if="!groups.length && !search"
+          class="rounded-2xl border border-gray-800 bg-gray-900 p-5 text-sm text-gray-400"
+        >
+          Nothing is stored here yet.
+        </p>
         <section
           v-for="group in groups"
           :key="group.key"
@@ -149,7 +155,11 @@ import { computed, onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { QrCodeIcon } from "@heroicons/vue/24/outline";
 import apiService from "@/services/api";
-import type { InventoryLocationBin, InventoryLocationView } from "@/types/api";
+import type {
+  InventoryLocationBin,
+  InventoryLocationItem,
+  InventoryLocationView,
+} from "@/types/api";
 
 const route = useRoute();
 const location = ref<InventoryLocationView | null>(null),
@@ -189,27 +199,40 @@ const subtitle = computed(() => {
   return isShelf.value ? room.value : null;
 });
 
-// A room view groups bins under their shelf; a shelf view is one group.
+// A room view groups bins under their shelf; a shelf view is one group. Items placed straight
+// on a shelf or in a room are listed in a card of their own, since they are in no bin.
 const groups = computed(() => {
   if (!location.value) return [];
   const q = search.value.trim().toLowerCase();
+  const matches = (i: InventoryLocationItem) =>
+    !q ||
+    [i.name, i.barcode, i.category, i.description].some((v) =>
+      v?.toLowerCase().includes(q),
+    );
   const bins: InventoryLocationBin[] = location.value.bins
-    .map((bin) => ({
-      ...bin,
-      items: q
-        ? bin.items.filter((i) =>
-            [i.name, i.barcode, i.category, i.description].some((v) =>
-              v?.toLowerCase().includes(q),
-            ),
-          )
-        : bin.items,
-    }))
+    .map((bin) => ({ ...bin, items: bin.items.filter(matches) }))
     // While searching, hide bins with no hits so results are easy to scan.
     .filter((bin) => !q || bin.items.length);
   const byShelf = new Map<string, InventoryLocationBin[]>();
   for (const bin of bins) {
     const key = bin.shelf ?? "";
     byShelf.set(key, [...(byShelf.get(key) ?? []), bin]);
+  }
+  const direct = new Map<string, InventoryLocationItem[]>();
+  for (const item of location.value.directItems.filter(matches)) {
+    const key = item.shelf ?? "";
+    direct.set(key, [...(direct.get(key) ?? []), item]);
+  }
+  for (const [key, items] of direct) {
+    const card: InventoryLocationBin = {
+      id: `direct-${key}`,
+      name: key || isShelf.value ? "On the shelf" : "In the room",
+      shelf: key || null,
+      code: null,
+      description: null,
+      items,
+    };
+    byShelf.set(key, [card, ...(byShelf.get(key) ?? [])]);
   }
   return [...byShelf.entries()].map(([key, shelfBins]) => ({
     key,

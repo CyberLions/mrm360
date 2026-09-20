@@ -3,6 +3,7 @@ import { createPinia } from 'pinia'
 import Toast from 'vue-toastification'
 import 'vue-toastification/dist/index.css'
 import 'tailwindcss/tailwind.css'
+import '@/assets/base.css'
 
 import App from './App.vue'
 import router from './router'

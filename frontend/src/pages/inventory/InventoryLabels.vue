@@ -89,6 +89,8 @@
     <LocationLabelPicker
       v-if="mode === 'locations'"
       :bins="bins"
+      :rooms="registryRooms"
+      :shelves="registryShelves"
       :items="items"
       :disabled="!activeTemplate"
       @generate="generateLocations"
@@ -336,6 +338,8 @@ import type {
   InventoryItem,
   InventoryLabelTemplate,
   InventoryLocationSpec,
+  InventoryRoom,
+  InventoryShelf,
 } from "@/types/api";
 
 const modes = [
@@ -346,6 +350,8 @@ const TEMPLATE_STORAGE_KEY = "inventoryLabelTemplate";
 
 const items = ref<InventoryItem[]>([]),
   bins = ref<InventoryBin[]>([]),
+  registryShelves = ref<InventoryShelf[]>([]),
+  registryRooms = ref<InventoryRoom[]>([]),
   categories = ref<InventoryCategory[]>([]),
   templates = ref<InventoryLabelTemplate[]>([]),
   maxLabels = ref(1000),
@@ -503,6 +509,8 @@ async function load() {
     ]);
     items.value = inventory.items;
     bins.value = inventory.bins;
+    registryShelves.value = inventory.shelves;
+    registryRooms.value = inventory.rooms;
     categories.value = inventory.categories;
     templates.value = labelConfig.templates;
     maxLabels.value = labelConfig.maxLabels;

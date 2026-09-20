@@ -39,21 +39,38 @@
               {{ column.subtitle }} · {{ itemCount(column.groups) }} items
             </p>
           </div>
-          <button
+          <div
             v-if="canManage && column.id !== 'checked-out'"
-            class="rounded bg-gray-700 px-2 text-xl text-blue-300 hover:bg-gray-600"
-            title="Add item here"
-            @click="openAdd(column.id)"
+            class="flex shrink-0 items-center gap-1"
           >
-            +
-          </button>
+            <IconButton
+              v-if="itemCount(column.groups)"
+              :icon="ArrowsRightLeftIcon"
+              :label="`Move all ${itemCount(column.groups)} items to another location`"
+              @click="movingItems = columnItems(column.groups)"
+            />
+            <IconButton
+              v-if="column.id !== 'unassigned' && itemCount(column.groups)"
+              :icon="ArchiveBoxXMarkIcon"
+              :label="`Empty ${column.name} (move all to Unassigned)`"
+              variant="warning"
+              @click="emptyColumn(column)"
+            />
+            <button
+              class="h-9 w-9 rounded-md bg-gray-700 text-xl text-blue-300 hover:bg-gray-600"
+              title="Add item here"
+              @click="openAdd(column.id)"
+            >
+              +
+            </button>
+          </div>
         </header>
         <div class="space-y-2">
           <article
             v-for="group in column.groups"
             :key="group.key"
             :draggable="canManage"
-            @dragstart="startDrag(group.items[0])"
+            @dragstart="startDrag(group.items)"
             class="cursor-grab rounded-lg bg-gray-900 p-3 border border-gray-700 active:cursor-grabbing"
           >
             <div class="flex items-start justify-between gap-2">
@@ -69,20 +86,32 @@
                 @click.stop="openItemPicker(group)"
               >
                 {{ group.name }}</button
-              ><button
-                v-if="group.items.length > 1"
-                type="button"
-                class="rounded-full bg-blue-900 px-2 py-0.5 text-xs font-semibold text-blue-200 hover:bg-blue-800"
-                @click.stop="openItemPicker(group)"
-              >
-                ×{{ group.items.length }}</button
-              ><IconButton
-                v-else-if="canManage"
-                :icon="PencilSquareIcon"
-                label="Edit item"
-                size="sm"
-                @click.stop="editingItem = group.items[0]"
-              />
+              ><div class="flex shrink-0 items-center gap-1">
+                <button
+                  v-if="group.items.length > 1"
+                  type="button"
+                  class="rounded-full bg-blue-900 px-2 py-0.5 text-xs font-semibold text-blue-200 hover:bg-blue-800"
+                  @click.stop="openItemPicker(group)"
+                >
+                  ×{{ group.items.length }}
+                </button>
+                <IconButton
+                  v-if="canManage"
+                  :icon="ArrowsRightLeftIcon"
+                  :label="
+                    group.items.length > 1
+                      ? `Move all ${group.items.length} items to another location`
+                      : 'Move to another location'
+                  "
+                  @click.stop="movingItems = group.items"
+                />
+                <IconButton
+                  v-if="canManage && group.items.length === 1"
+                  :icon="PencilSquareIcon"
+                  label="Edit item"
+                  @click.stop="editingItem = group.items[0]"
+                />
+              </div>
             </div>
             <button
               v-if="group.items.length > 1"
@@ -156,10 +185,11 @@
               required
               class="field"
               placeholder="Barcode / identifier"
+              @input="onBarcodeInput($event)"
             /><button
               type="button"
               class="btn shrink-0"
-              @click="generateBarcode"
+              @click="regenerateBarcode"
             >
               Auto-generate
             </button>
@@ -179,13 +209,14 @@
             class="field"
             placeholder="Description (optional): size, condition, what it's for…"
           ></textarea
-          ><select v-model="draft.binId" class="field">
-            <option value="">No bin</option>
-            <option v-for="bin in bins" :key="bin.id" :value="bin.id">
-              {{ binLabel(bin) }}
-            </option>
-          </select
-          ><select v-model="draft.categoryId" class="field">
+          ><PlaceSelect
+            v-model="draft.place"
+            class="field"
+            empty-label="No location"
+            :bins="bins"
+            :shelves="shelves"
+            :rooms="rooms"
+          /><select v-model="draft.categoryId" class="field">
             <option value="">No category</option>
             <option
               v-for="category in categories"
@@ -194,7 +225,16 @@
             >
               {{ category.name }}
             </option>
-          </select></template
+            <option :value="NEW_CATEGORY">＋ New category…</option>
+          </select
+          ><input
+            v-if="draft.categoryId === NEW_CATEGORY"
+            v-model="draft.newCategory"
+            required
+            maxlength="100"
+            class="field"
+            placeholder="New category name, e.g. GBM Equipment"
+          /></template
         >
         <div class="flex justify-end gap-2">
           <button type="button" class="btn" @click="closeModals">Cancel</button
@@ -213,14 +253,18 @@
           required
           class="field"
           placeholder="Bin name"
-        /><input
+        /><NameSelect
           v-model="binDraft.room"
-          class="field"
-          placeholder="Room (optional)"
-        /><input
+          :options="roomNames"
+          empty-label="No room"
+          new-label="New room…"
+          new-placeholder="New room name"
+        /><NameSelect
           v-model="binDraft.shelf"
-          class="field"
-          placeholder="Shelf (optional)"
+          :options="binShelfNames"
+          empty-label="No shelf"
+          new-label="New shelf…"
+          new-placeholder="New shelf name"
         /><input
           v-model="binDraft.code"
           class="field"
@@ -259,10 +303,12 @@
     <div v-if="showCheckout" class="overlay">
       <div class="modal">
         <h2 class="text-xl font-semibold text-white">
-          Check out {{ draggedItem?.name }}
+          Check out {{ draggedItems[0]?.name
+          }}{{ draggedItems.length > 1 ? ` (×${draggedItems.length})` : "" }}
         </h2>
         <p class="text-sm text-gray-400">
-          Choose the member receiving this barcoded item.
+          Choose the member receiving
+          {{ draggedItems.length > 1 ? "these barcoded items" : "this barcoded item" }}.
         </p>
         <input
           v-model="memberSearch"
@@ -308,7 +354,7 @@
             Select {{ selectedGroup.name }}
           </h2>
           <p class="mt-1 text-sm text-gray-400">
-            Choose a unique identifier to view or edit.
+            Choose a unique identifier to view, edit or move.
           </p>
         </div>
         <div class="max-h-[60vh] space-y-2 overflow-y-auto">
@@ -327,9 +373,7 @@
                 {{
                   item.checkedOutToId
                     ? `Checked out to ${holderName(item)}`
-                    : item.bin
-                      ? binLabel(item.bin)
-                      : "Unassigned"
+                    : itemPlaceLabel(item)
                 }}
               </div>
               <div class="mt-1 text-xs text-gray-500">
@@ -344,6 +388,10 @@
               class="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold"
               >{{ item.checkedOutToId ? "Checked out" : "Available" }}</span
             ><IconButton
+              :icon="ArrowsRightLeftIcon"
+              label="Move to another location"
+              @click="movingItems = [item]"
+            /><IconButton
               :icon="PencilSquareIcon"
               label="Edit item"
               @click="editingItem = item"
@@ -359,10 +407,21 @@
         </button>
       </div>
     </div>
+    <ItemMoveModal
+      v-if="movingItems"
+      :items="movingItems"
+      :bins="bins"
+      :shelves="shelves"
+      :rooms="rooms"
+      @close="movingItems = null"
+      @saved="itemEdited"
+    />
     <ItemEditModal
       v-if="editingItem"
       :item="editingItem"
       :bins="bins"
+      :shelves="shelves"
+      :rooms="rooms"
       :categories="categories"
       @close="editingItem = null"
       @saved="itemEdited"
@@ -375,12 +434,29 @@ import { useRoute, useRouter } from "vue-router";
 import apiService from "@/services/api";
 import IconButton from "@/components/common/IconButton.vue";
 import ItemEditModal from "@/components/inventory/ItemEditModal.vue";
-import { PencilSquareIcon } from "@heroicons/vue/24/outline";
-import type { InventoryBin, InventoryCategory, InventoryItem } from "@/types/api";
+import ItemMoveModal from "@/components/inventory/ItemMoveModal.vue";
+import NameSelect from "@/components/inventory/NameSelect.vue";
+import PlaceSelect from "@/components/inventory/PlaceSelect.vue";
+import { itemPlaceLabel } from "@/utils/binLabel";
+import { NO_PLACE, parsePlaceValue, placeValue } from "@/utils/place";
+import {
+  ArchiveBoxXMarkIcon,
+  ArrowsRightLeftIcon,
+  PencilSquareIcon,
+} from "@heroicons/vue/24/outline";
+import type {
+  InventoryBin,
+  InventoryCategory,
+  InventoryItem,
+  InventoryRoom,
+  InventoryShelf,
+} from "@/types/api";
 const route = useRoute(),
   router = useRouter();
 const items = ref<InventoryItem[]>([]),
   bins = ref<InventoryBin[]>([]),
+  shelves = ref<InventoryShelf[]>([]),
+  rooms = ref<InventoryRoom[]>([]),
   categories = ref<InventoryCategory[]>([]),
   loading = ref(true),
   error = ref(""),
@@ -390,7 +466,7 @@ const items = ref<InventoryItem[]>([]),
   showBin = ref(false),
   showCategory = ref(false),
   bulkText = ref("");
-const draggedItem = ref<InventoryItem | null>(null),
+const draggedItems = ref<InventoryItem[]>([]),
   showCheckout = ref(false),
   memberSearch = ref(""),
   memberResults = ref<any[]>([]);
@@ -399,14 +475,21 @@ const selectedGroup = ref<{
   name: string;
   items: InventoryItem[];
 } | null>(null);
-const editingItem = ref<InventoryItem | null>(null);
+const editingItem = ref<InventoryItem | null>(null),
+  movingItems = ref<InventoryItem[] | null>(null);
 const draft = reactive({
   barcode: "",
   name: "",
   description: "",
-  binId: "",
+  place: "",
   categoryId: "",
+  newCategory: "",
 });
+const NEW_CATEGORY = "__new__";
+// The barcode follows the name and category until the user types their own.
+const barcodeEdited = ref(false);
+let barcodeTimer: ReturnType<typeof setTimeout> | undefined;
+let barcodeRequest = 0;
 const binDraft = reactive({
   name: "",
   room: "",
@@ -415,13 +498,14 @@ const binDraft = reactive({
   description: "",
 });
 const categoryDraft = reactive({ name: "", description: "" });
-const binLabel = (bin: InventoryBin) => {
-  const parts = [bin.room, bin.shelf ? `Shelf ${bin.shelf}` : ""].filter(
-    Boolean,
-  );
-  return parts.length ? `${parts.join(" · ")} · ${bin.name}` : bin.name;
-};
 const names = computed(() => [...new Set(items.value.map((i) => i.name))]);
+// Rooms and shelves that already exist, offered when creating a bin; shelves follow the room.
+const roomNames = computed(() =>
+  [...new Set([...rooms.value.map((r) => r.name), ...bins.value.map((b) => b.room).filter((v): v is string => !!v)])].sort(),
+);
+const binShelfNames = computed(() =>
+  [...new Set(shelves.value.filter((sh) => (sh.room?.name ?? "") === binDraft.room).map((sh) => sh.name))].sort(),
+);
 const groupItems = (list: InventoryItem[]) =>
   Object.values(
     list.reduce(
@@ -436,31 +520,46 @@ const groupItems = (list: InventoryItem[]) =>
       >,
     ),
   );
+// Every room, shelf and bin is a column, keyed by its packed place value so a drop or an
+// "add here" knows exactly where it means.
+const stocked = (value: string) =>
+  groupItems(
+    items.value.filter((i) => placeValue(i) === value && !i.checkedOutToId),
+  );
 const columns = computed(() =>
   canManage.value
     ? [
+        ...rooms.value.map((room) => ({
+          id: `room:${room.id}`,
+          name: room.name,
+          subtitle: "Room",
+          groups: stocked(`room:${room.id}`),
+        })),
+        ...shelves.value.map((shelf) => ({
+          id: `shelf:${shelf.id}`,
+          name: `Shelf ${shelf.name}`,
+          subtitle: ["Shelf", shelf.room?.name].filter(Boolean).join(" · "),
+          groups: stocked(`shelf:${shelf.id}`),
+        })),
         ...bins.value.map((bin) => ({
-          id: bin.id,
+          id: `bin:${bin.id}`,
           name: bin.name,
           subtitle:
             [
+              "Bin",
               bin.room,
               bin.shelf && `Shelf ${bin.shelf}`,
               bin.code && `Code ${bin.code}`,
             ]
               .filter(Boolean)
-              .join(" · ") || "No room",
-          groups: groupItems(
-            items.value.filter((i) => i.binId === bin.id && !i.checkedOutToId),
-          ),
+              .join(" · "),
+          groups: stocked(`bin:${bin.id}`),
         })),
         {
           id: "unassigned",
           name: "Unassigned",
-          subtitle: "No bin",
-          groups: groupItems(
-            items.value.filter((i) => !i.binId && !i.checkedOutToId),
-          ),
+          subtitle: "No location",
+          groups: stocked(""),
         },
         {
           id: "checked-out",
@@ -480,6 +579,28 @@ const columns = computed(() =>
 );
 const itemCount = (groups: { items: InventoryItem[] }[]) =>
   groups.reduce((total, group) => total + group.items.length, 0);
+const columnItems = (groups: { items: InventoryItem[] }[]) =>
+  groups.flatMap((group) => group.items);
+async function emptyColumn(column: {
+  name: string;
+  groups: { items: InventoryItem[] }[];
+}) {
+  const toMove = columnItems(column.groups);
+  const count = toMove.length;
+  if (
+    !confirm(
+      `Move all ${count} ${count === 1 ? "item" : "items"} out of ${column.name} to Unassigned?`,
+    )
+  )
+    return;
+  error.value = "";
+  try {
+    await apiService.moveInventoryItems(toMove, NO_PLACE);
+  } catch (e: any) {
+    error.value = e.response?.data?.error || "Could not empty location";
+  }
+  await load();
+}
 const holderName = (item: InventoryItem) =>
   item.checkedOutTo?.displayName ||
   `${item.checkedOutTo?.firstName || ""} ${item.checkedOutTo?.lastName || ""}`.trim();
@@ -513,6 +634,7 @@ const openItemPicker = (group: {
 };
 async function itemEdited() {
   editingItem.value = null;
+  movingItems.value = null;
   selectedGroup.value = null;
   await load();
 }
@@ -522,6 +644,8 @@ async function load() {
     const data = await apiService.getInventory();
     items.value = data.items;
     bins.value = data.bins;
+    shelves.value = data.shelves;
+    rooms.value = data.rooms;
     categories.value = data.categories;
     canManage.value = data.canManage;
   } catch (e: any) {
@@ -530,8 +654,8 @@ async function load() {
     loading.value = false;
   }
 }
-function openAdd(binId: string) {
-  draft.binId = binId === "unassigned" ? "" : binId;
+function openAdd(columnId: string) {
+  draft.place = columnId === "unassigned" ? "" : columnId;
   showItem.value = true;
 }
 function closeModals() {
@@ -541,9 +665,13 @@ function closeModals() {
     barcode: "",
     name: "",
     description: "",
-    binId: "",
+    place: "",
     categoryId: "",
+    newCategory: "",
   });
+  barcodeEdited.value = false;
+  clearTimeout(barcodeTimer);
+  barcodeRequest++;
   Object.assign(binDraft, {
     name: "",
     room: "",
@@ -588,10 +716,11 @@ async function saveItems() {
           })
       : [
           {
-            ...draft,
+            barcode: draft.barcode,
+            name: draft.name,
             description: draft.description.trim() || null,
-            binId: draft.binId || null,
-            categoryId: draft.categoryId || null,
+            ...parsePlaceValue(draft.place),
+            ...categoryFields(),
           },
         ];
     await apiService.createInventoryItems(payload);
@@ -628,47 +757,72 @@ async function saveCategory() {
     error.value = e.response?.data?.error || "Could not create category";
   }
 }
-async function generateBarcode() {
+// Either an existing category's id, or the typed name of a new one (the API creates it).
+function categoryFields(): { categoryId: string | null; categoryName?: string } {
+  if (draft.categoryId !== NEW_CATEGORY) return { categoryId: draft.categoryId || null };
+  const name = draft.newCategory.trim();
+  const existing = categories.value.find((c) => c.name.toLowerCase() === name.toLowerCase());
+  return existing ? { categoryId: existing.id } : { categoryId: null, categoryName: name || undefined };
+}
+async function generateBarcode(auto = false) {
+  const request = ++barcodeRequest;
   try {
-    draft.barcode = await apiService.generateInventoryBarcode({
+    const barcode = await apiService.generateInventoryBarcode({
       name: draft.name,
-      categoryId: draft.categoryId || null,
+      ...categoryFields(),
     });
+    // Ignore a slow response that a newer keystroke, an edit or closing the form has outrun.
+    if (request === barcodeRequest && (!auto || !barcodeEdited.value)) draft.barcode = barcode;
   } catch (e: any) {
-    error.value = e.response?.data?.error || "Could not generate barcode";
+    if (!auto) error.value = e.response?.data?.error || "Could not generate barcode";
   }
 }
-function startDrag(item: InventoryItem) {
-  draggedItem.value = item;
+function onBarcodeInput(event: Event) {
+  // Clearing the field hands the barcode back to auto-generation.
+  barcodeEdited.value = (event.target as HTMLInputElement).value.trim() !== "";
+  if (barcodeEdited.value) clearTimeout(barcodeTimer);
+  else scheduleBarcode();
+}
+function scheduleBarcode() {
+  clearTimeout(barcodeTimer);
+  if (!showItem.value || barcodeEdited.value || !draft.name.trim()) return;
+  barcodeTimer = setTimeout(() => generateBarcode(true), 300);
+}
+function regenerateBarcode() {
+  barcodeEdited.value = false;
+  generateBarcode();
+}
+watch(() => [draft.name, draft.categoryId, draft.newCategory], scheduleBarcode);
+function startDrag(group: InventoryItem[]) {
+  draggedItems.value = group;
 }
 async function dropOn(columnId: string) {
-  const item = draggedItem.value;
-  if (!item || !canManage.value) return;
+  const dragged = draggedItems.value;
+  if (!dragged.length || !canManage.value) return;
   if (columnId === "checked-out") {
-    if (!item.checkedOutToId) {
+    // Only items still on the shelf can be checked out.
+    draggedItems.value = dragged.filter((item) => !item.checkedOutToId);
+    if (draggedItems.value.length) {
       showCheckout.value = true;
       memberSearch.value = "";
       memberResults.value = [];
     }
     return;
   }
+  const target = columnId === "unassigned" ? "" : columnId;
+  const toMove = dragged.filter(
+    (item) => item.checkedOutToId || placeValue(item) !== target,
+  );
   try {
-    if (item.checkedOutToId)
-      await apiService.inventoryTransaction({
-        action: "checkin",
-        barcode: item.barcode,
-        binId: columnId === "unassigned" ? null : columnId,
-      });
-    else
-      await apiService.moveInventoryItem(
-        item.id,
-        columnId === "unassigned" ? null : columnId,
-      );
-    await load();
+    if (toMove.length) {
+      await apiService.moveInventoryItems(toMove, parsePlaceValue(target));
+      await load();
+    }
   } catch (e: any) {
     error.value = e.response?.data?.error || "Could not move item";
+    await load();
   } finally {
-    draggedItem.value = null;
+    draggedItems.value = [];
   }
 }
 async function searchMembers() {
@@ -685,18 +839,23 @@ async function searchMembers() {
   }
 }
 async function checkoutTo(userId: string) {
-  if (!draggedItem.value) return;
+  if (!draggedItems.value.length) return;
   try {
-    await apiService.inventoryTransaction({
-      action: "checkout",
-      barcode: draggedItem.value.barcode,
-      memberCode: userId,
-    });
+    // Drop each item once it is out, so a retry after a failure only covers the rest.
+    while (draggedItems.value.length) {
+      await apiService.inventoryTransaction({
+        action: "checkout",
+        barcode: draggedItems.value[0].barcode,
+        memberCode: userId,
+      });
+      draggedItems.value = draggedItems.value.slice(1);
+    }
     showCheckout.value = false;
-    draggedItem.value = null;
+    draggedItems.value = [];
     await load();
   } catch (e: any) {
     error.value = e.response?.data?.error || "Could not check out item";
+    await load();
   }
 }
 watch(

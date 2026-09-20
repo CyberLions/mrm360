@@ -23,7 +23,7 @@ import type {
   WorkshopSeriesCreate,
   WorkshopSeriesUpdate,
   BadgeClass
-  , InventoryItem, InventoryBin, InventoryCategory, ItemLoan, InventoryLabelTemplate, InventoryLabelJobStatus, InventoryLocationSpec, InventoryLocationView, InventoryTransactionResult
+  , InventoryItem, InventoryBin, InventoryRoom, InventoryShelf, InventoryPlaceIds, InventoryCategory, ItemLoan, InventoryLabelTemplate, InventoryLabelJobStatus, InventoryLocationSpec, InventoryLocationView, InventoryTransactionResult
 } from '@/types/api'
 
 class ApiService {
@@ -314,11 +314,11 @@ class ApiService {
     return response.data
   }
 
-  async getInventory(): Promise<{ items: InventoryItem[]; bins: InventoryBin[]; categories: InventoryCategory[]; canManage: boolean }> {
+  async getInventory(): Promise<{ items: InventoryItem[]; bins: InventoryBin[]; rooms: InventoryRoom[]; shelves: InventoryShelf[]; categories: InventoryCategory[]; canManage: boolean }> {
     return (await this.api.get('/inventory')).data
   }
 
-  async createInventoryItems(items: Array<{ barcode: string; name: string; description?: string | null; binId?: string | null; binName?: string; room?: string; categoryId?: string | null; categoryName?: string }>): Promise<{ items: InventoryItem[] }> {
+  async createInventoryItems(items: Array<{ barcode: string; name: string; description?: string | null; binId?: string | null; shelfId?: string | null; roomId?: string | null; binName?: string; room?: string; categoryId?: string | null; categoryName?: string }>): Promise<{ items: InventoryItem[] }> {
     return (await this.api.post('/inventory', { items })).data
   }
 
@@ -336,6 +336,38 @@ class ApiService {
 
   async deleteInventoryBin(id: string): Promise<void> {
     await this.api.delete(`/inventory/bins/${id}`)
+  }
+
+  async getInventoryRooms(): Promise<InventoryRoom[]> {
+    return (await this.api.get('/inventory/rooms')).data.rooms
+  }
+
+  async createInventoryRoom(data: { name: string; description?: string | null }): Promise<InventoryRoom> {
+    return (await this.api.post('/inventory/rooms', data)).data.room
+  }
+
+  async updateInventoryRoom(id: string, data: { name: string; description?: string | null }): Promise<InventoryRoom> {
+    return (await this.api.put(`/inventory/rooms/${id}`, data)).data.room
+  }
+
+  async deleteInventoryRoom(id: string): Promise<void> {
+    await this.api.delete(`/inventory/rooms/${id}`)
+  }
+
+  async getInventoryShelves(): Promise<InventoryShelf[]> {
+    return (await this.api.get('/inventory/shelves')).data.shelves
+  }
+
+  async createInventoryShelf(data: { name: string; roomId?: string | null; description?: string | null }): Promise<InventoryShelf> {
+    return (await this.api.post('/inventory/shelves', data)).data.shelf
+  }
+
+  async updateInventoryShelf(id: string, data: { name: string; roomId?: string | null; description?: string | null }): Promise<InventoryShelf> {
+    return (await this.api.put(`/inventory/shelves/${id}`, data)).data.shelf
+  }
+
+  async deleteInventoryShelf(id: string): Promise<void> {
+    await this.api.delete(`/inventory/shelves/${id}`)
   }
 
   async createInventoryCategory(data: { name: string; description?: string | null }): Promise<InventoryCategory> {
@@ -358,15 +390,35 @@ class ApiService {
     return (await this.api.get(`/inventory/items/${id}`)).data.item
   }
 
-  async updateInventoryItem(id: string, data: { binId?: string | null; categoryId?: string | null; name?: string; description?: string | null }): Promise<InventoryItem> {
+  async updateInventoryItem(id: string, data: { binId?: string | null; shelfId?: string | null; roomId?: string | null; categoryId?: string | null; name?: string; description?: string | null }): Promise<InventoryItem> {
     return (await this.api.put(`/inventory/items/${id}`, data)).data.item
   }
 
-  async moveInventoryItem(id: string, binId: string | null): Promise<InventoryItem> {
-    return this.updateInventoryItem(id, { binId })
+  async moveInventoryItem(id: string, place: InventoryPlaceIds): Promise<InventoryItem> {
+    return this.updateInventoryItem(id, place)
   }
 
-  async inventoryTransaction(data: { action: 'checkout' | 'checkin'; barcode: string; memberCode?: string; binId?: string | null; selfCheckout?: boolean; note?: string }): Promise<InventoryTransactionResult> {
+  async deleteInventoryItem(id: string): Promise<void> {
+    await this.api.delete(`/inventory/items/${id}`)
+  }
+
+  async bulkInventoryItems(data: ({ action: 'move'; ids: string[] } & InventoryPlaceIds) | { action: 'category'; ids: string[]; categoryId: string | null } | { action: 'delete'; ids: string[] }): Promise<{ affected: number; skipped?: number }> {
+    return (await this.api.post('/inventory/items/bulk', data)).data
+  }
+
+  /**
+   * Put items in a bin, on a shelf or in a room (all null = unassigned). Items on loan are
+   * returned via a check-in to that place, like dragging them onto a column; the rest move in
+   * one request.
+   */
+  async moveInventoryItems(items: InventoryItem[], place: InventoryPlaceIds): Promise<void> {
+    const onLoan = items.filter(item => item.checkedOutToId)
+    const inStock = items.filter(item => !item.checkedOutToId)
+    if (inStock.length) await this.bulkInventoryItems({ action: 'move', ids: inStock.map(item => item.id), ...place })
+    for (const item of onLoan) await this.inventoryTransaction({ action: 'checkin', barcode: item.barcode, ...place })
+  }
+
+  async inventoryTransaction(data: { action: 'checkout' | 'checkin'; barcode: string; memberCode?: string; binId?: string | null; shelfId?: string | null; roomId?: string | null; selfCheckout?: boolean; note?: string }): Promise<InventoryTransactionResult> {
     return (await this.api.post('/inventory/transaction', data)).data
   }
 
@@ -375,7 +427,7 @@ class ApiService {
   }
 
   // The name and category are folded into the code (e.g. APP-POL-K7M) so it stays short and readable.
-  async generateInventoryBarcode(parts: { name?: string; categoryId?: string | null } = {}): Promise<string> {
+  async generateInventoryBarcode(parts: { name?: string; categoryId?: string | null; categoryName?: string } = {}): Promise<string> {
     return (await this.api.post('/inventory/generate-barcode', parts)).data.barcode
   }
 

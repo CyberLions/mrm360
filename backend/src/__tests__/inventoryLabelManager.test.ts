@@ -1,14 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockCount, mockBinCount, mockAdd, mockGetJob, mockLoadPdf } = vi.hoisted(() => ({
+const { mockCount, mockBinCount, mockShelfCount, mockRoomCount, mockAdd, mockGetJob, mockLoadPdf } = vi.hoisted(() => ({
   mockCount: vi.fn(),
   mockBinCount: vi.fn(),
+  mockShelfCount: vi.fn(),
+  mockRoomCount: vi.fn(),
   mockAdd: vi.fn(),
   mockGetJob: vi.fn(),
   mockLoadPdf: vi.fn(),
 }));
 
-vi.mock('@/models/prismaClient', () => ({ prisma: { inventoryItem: { count: mockCount }, inventoryBin: { count: mockBinCount } } }));
+vi.mock('@/models/prismaClient', () => ({ prisma: { inventoryItem: { count: mockCount }, inventoryBin: { count: mockBinCount }, inventoryShelf: { count: mockShelfCount }, inventoryRoom: { count: mockRoomCount } } }));
 vi.mock('@/tasks/queue', () => ({ inventoryLabelQueue: { add: mockAdd, getJob: mockGetJob } }));
 vi.mock('@/services/inventoryLabelStore', () => ({ loadLabelPdf: mockLoadPdf }));
 
@@ -29,6 +31,8 @@ const fakeJob = (overrides: Record<string, unknown> = {}) => ({
 describe('InventoryLabelManager', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    mockShelfCount.mockResolvedValue(0);
+    mockRoomCount.mockResolvedValue(0);
   });
 
   describe('requestLabels', () => {
@@ -99,6 +103,17 @@ describe('InventoryLabelManager', () => {
         manager.requestLocationLabels({ ...base, locations: [{ room: 'A', shelf: null }, { room: 'B', shelf: null }] })
       ).rejects.toMatchObject({ statusCode: 404 });
       expect(mockAdd).not.toHaveBeenCalled();
+    });
+
+    it('accepts a registered room or shelf that has no bins yet', async () => {
+      mockBinCount.mockResolvedValue(0);
+      mockRoomCount.mockResolvedValue(1);
+      mockShelfCount.mockResolvedValue(1);
+      mockAdd.mockResolvedValue({ id: 3 });
+      await manager.requestLocationLabels({ ...base, locations: [{ room: 'Empty room', shelf: null }, { room: 'Lab 1', shelf: 'New shelf' }] });
+      expect(mockRoomCount).toHaveBeenCalledWith({ where: { name: 'Empty room' } });
+      expect(mockShelfCount).toHaveBeenCalledWith({ where: { name: 'New shelf', room: { name: 'Lab 1' } } });
+      expect(mockAdd).toHaveBeenCalled();
     });
 
     it('reports progress totals from the location count', async () => {

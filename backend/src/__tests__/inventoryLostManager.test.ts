@@ -1,17 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockFindUnique, mockFindFirst, mockUpdateMany, mockFindUsers, mockEnqueueEmailJob } = vi.hoisted(() => ({
+const { mockFindUnique, mockFindFirst, mockUpdateMany, mockEnqueueEmailJob } = vi.hoisted(() => ({
   mockFindUnique: vi.fn(),
   mockFindFirst: vi.fn(),
   mockUpdateMany: vi.fn(),
-  mockFindUsers: vi.fn(),
   mockEnqueueEmailJob: vi.fn(),
 }));
 
 vi.mock('@/models/prismaClient', () => ({
   prisma: {
     inventoryItem: { findUnique: mockFindUnique, findFirst: mockFindFirst, updateMany: mockUpdateMany },
-    user: { findMany: mockFindUsers },
   },
 }));
 vi.mock('@/managers/taskManager', () => ({
@@ -38,14 +36,11 @@ describe('InventoryLostManager', () => {
     vi.resetAllMocks();
     mockFindUnique.mockResolvedValue(item);
     mockUpdateMany.mockResolvedValue({ count: 1 });
-    mockFindUsers.mockResolvedValue([
-      { firstName: 'Ellie', email: 'ellie@test.com' },
-      { firstName: 'Sam', email: 'sam@test.com' },
-    ]);
+    delete process.env.LOST_ITEM_NOTIFICATION_EMAIL;
     mockEnqueueEmailJob.mockResolvedValue('job-1');
   });
 
-  it('flags the item lost and emails every exec/admin', async () => {
+  it('flags the item lost and emails ccso@psu.edu once', async () => {
     const result = await manager.reportLost('  ITEM-ABC123 ', { note: 'Found in the hallway' });
 
     expect(result).toEqual({ itemName: 'Fluke Multimeter', newlyReported: true });
@@ -54,12 +49,11 @@ describe('InventoryLostManager', () => {
       where: { id: 'item-1', lostAt: null },
       data: { lostAt: expect.any(Date), lostNote: 'Found in the hallway' },
     });
-    expect(mockEnqueueEmailJob).toHaveBeenCalledTimes(2);
+    expect(mockEnqueueEmailJob).toHaveBeenCalledTimes(1);
     expect(mockEnqueueEmailJob).toHaveBeenCalledWith(expect.objectContaining({
-      to: 'ellie@test.com',
+      to: 'ccso@psu.edu',
       template: 'itemReportedLost',
       templateData: expect.objectContaining({
-        userName: 'Ellie',
         itemName: 'Fluke Multimeter',
         itemBarcode: 'ITEM-ABC123',
         lastHolder: 'Alice Smith',
@@ -69,17 +63,13 @@ describe('InventoryLostManager', () => {
     }));
   });
 
-  it('selects recipients by system role or admin Authentik group', async () => {
+  it('sends to LOST_ITEM_NOTIFICATION_EMAIL when configured', async () => {
+    process.env.LOST_ITEM_NOTIFICATION_EMAIL = 'inventory@test.com';
+
     await manager.reportLost('ITEM-ABC123');
 
-    expect(mockFindUsers).toHaveBeenCalledWith(expect.objectContaining({
-      where: {
-        OR: [
-          { role: { in: ['ADMIN', 'EXEC_BOARD'] } },
-          { userGroups: { some: { group: { name: { in: ['tech-team', 'executive-board'] } } } } },
-        ],
-      },
-    }));
+    expect(mockEnqueueEmailJob).toHaveBeenCalledTimes(1);
+    expect(mockEnqueueEmailJob).toHaveBeenCalledWith(expect.objectContaining({ to: 'inventory@test.com' }));
   });
 
   it('falls back to a case-insensitive lookup', async () => {
@@ -116,12 +106,5 @@ describe('InventoryLostManager', () => {
     mockEnqueueEmailJob.mockRejectedValue(new Error('Redis down'));
 
     await expect(manager.reportLost('ITEM-ABC123')).resolves.toMatchObject({ newlyReported: true });
-  });
-
-  it('still records the report when there are no recipients', async () => {
-    mockFindUsers.mockResolvedValue([]);
-
-    await expect(manager.reportLost('ITEM-ABC123')).resolves.toMatchObject({ newlyReported: true });
-    expect(mockEnqueueEmailJob).not.toHaveBeenCalled();
   });
 });

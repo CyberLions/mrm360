@@ -150,7 +150,7 @@
         <MapPinIcon class="mx-auto h-12 w-12 text-gray-500" />
         <h3 class="mt-2 text-gray-100">No bins, shelves or rooms found</h3>
         <p class="mt-1 text-sm text-gray-400">
-          Shelves and rooms come from the room and shelf set on each bin.
+          Add rooms, shelves and bins on the Bins & Locations page.
         </p>
       </div>
     </div>
@@ -170,10 +170,15 @@ import type {
   InventoryBin,
   InventoryItem,
   InventoryLocationSpec,
+  InventoryRoom,
+  InventoryShelf,
 } from "@/types/api";
 
 const props = defineProps<{
   bins: InventoryBin[];
+  /** Registered rooms and shelves, so ones that have no bins yet can still get a label. */
+  rooms?: InventoryRoom[];
+  shelves?: InventoryShelf[];
   items: InventoryItem[];
   disabled?: boolean;
 }>();
@@ -235,6 +240,11 @@ const allRows = computed<Row[]>(() => {
     bins: 0,
     items: 0,
   });
+  for (const room of props.rooms ?? []) bump(rowKey(room.name, null), () => roomRow(room.name), "bins", 0);
+  for (const shelf of props.shelves ?? []) {
+    const room = shelf.room?.name ?? null;
+    bump(rowKey(room, shelf.name), () => shelfRow(room, shelf.name), "bins", 0);
+  }
   for (const bin of props.bins) {
     const room = bin.room || null;
     const shelf = bin.shelf || null;
@@ -253,8 +263,9 @@ const allRows = computed<Row[]>(() => {
     });
   }
   for (const item of props.items) {
-    const room = item.bin?.room || null;
-    const shelf = item.bin?.shelf || null;
+    // An item is in a bin, directly on a shelf, or directly in a room.
+    const room = item.bin?.room || item.shelf?.room?.name || item.room?.name || null;
+    const shelf = item.bin?.shelf || item.shelf?.name || null;
     if (room) bump(rowKey(room, null), () => roomRow(room), "items");
     if (shelf) bump(rowKey(room, shelf), () => shelfRow(room, shelf), "items");
     if (item.binId) {

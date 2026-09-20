@@ -87,9 +87,7 @@
               {{
                 item.checkedOutToId
                   ? "With member"
-                  : item.bin
-                    ? locationName(item.bin)
-                    : "Unassigned"
+                  : itemPlaceLabel(item)
               }}
             </dd>
           </div>
@@ -119,8 +117,32 @@
             <dd>{{ item.bin.description || "No description" }}</dd>
           </div>
         </dl>
+        <dl v-else-if="item.shelf" class="space-y-4">
+          <div>
+            <dt>Shelf</dt>
+            <dd>{{ item.shelf.name }}</dd>
+          </div>
+          <div>
+            <dt>Room</dt>
+            <dd>{{ item.shelf.room?.name || "Not specified" }}</dd>
+          </div>
+          <div>
+            <dt>Description</dt>
+            <dd>{{ item.shelf.description || "No description" }}</dd>
+          </div>
+        </dl>
+        <dl v-else-if="item.room" class="space-y-4">
+          <div>
+            <dt>Room</dt>
+            <dd>{{ item.room.name }}</dd>
+          </div>
+          <div>
+            <dt>Description</dt>
+            <dd>{{ item.room.description || "No description" }}</dd>
+          </div>
+        </dl>
         <p v-else class="text-gray-400">
-          This item has no current bin location.
+          This item has no current location.
         </p>
       </section>
     </div>
@@ -198,6 +220,8 @@
       v-if="editing"
       :item="item"
       :bins="bins"
+      :shelves="shelves"
+      :rooms="rooms"
       :categories="categories"
       @close="editing = false"
       @saved="refresh"
@@ -205,6 +229,8 @@
       v-if="transacting"
       :item="item"
       :bins="bins"
+      :shelves="shelves"
+      :rooms="rooms"
       @close="transacting = false"
       @saved="refresh"
     />
@@ -218,6 +244,7 @@ import apiService from "@/services/api";
 import ItemEditModal from "@/components/inventory/ItemEditModal.vue";
 import ItemTransactionModal from "@/components/inventory/ItemTransactionModal.vue";
 import IconButton from "@/components/common/IconButton.vue";
+import { itemPlaceLabel } from "@/utils/binLabel";
 import {
   ArrowLeftOnRectangleIcon,
   ArrowRightOnRectangleIcon,
@@ -227,11 +254,15 @@ import type {
   InventoryBin,
   InventoryCategory,
   InventoryItem,
+  InventoryRoom,
+  InventoryShelf,
   ItemLoan,
 } from "@/types/api";
 const route = useRoute(),
   item = ref<(InventoryItem & { loans: ItemLoan[] }) | null>(null),
   bins = ref<InventoryBin[]>([]),
+  shelves = ref<InventoryShelf[]>([]),
+  rooms = ref<InventoryRoom[]>([]),
   categories = ref<InventoryCategory[]>([]),
   editing = ref(false),
   transacting = ref(false),
@@ -243,12 +274,6 @@ const name = (u: {
   }) => u.displayName || `${u.firstName} ${u.lastName}`,
   initials = (u?: { firstName: string; lastName: string }) =>
     u ? `${u.firstName[0] || ""}${u.lastName[0] || ""}`.toUpperCase() : "?",
-  locationName = (bin: InventoryBin) => {
-    const parts = [bin.room, bin.shelf ? `Shelf ${bin.shelf}` : ""].filter(
-      Boolean,
-    );
-    return parts.length ? `${parts.join(" · ")} · ${bin.name}` : bin.name;
-  },
   date = (v: string) =>
     new Date(v).toLocaleString(undefined, {
       dateStyle: "medium",
@@ -270,7 +295,11 @@ const name = (u: {
   };
 async function load() {
   item.value = await apiService.getInventoryItem(route.params.id as string);
-  bins.value = await apiService.getInventoryBins();
+  [bins.value, shelves.value, rooms.value] = await Promise.all([
+    apiService.getInventoryBins(),
+    apiService.getInventoryShelves(),
+    apiService.getInventoryRooms(),
+  ]);
   categories.value = await apiService.getInventoryCategories();
 }
 async function markFound() {

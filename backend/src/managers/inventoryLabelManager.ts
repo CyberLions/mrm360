@@ -70,13 +70,19 @@ export class InventoryLabelManager {
     if (locations.length > MAX_LABELS_PER_JOB) {
       throw createError(`Select at most ${MAX_LABELS_PER_JOB} locations per label run`, 400, 'TOO_MANY_ITEMS');
     }
-    // Every label must point at somewhere that has bins, otherwise the QR leads to an empty page.
-    const counts = await Promise.all(
-      locations.map(l =>
-        prisma.inventoryBin.count({ where: l.binId ? { id: l.binId } : { room: l.room ?? null, ...(l.shelf ? { shelf: l.shelf } : {}) } })
-      )
+    // Every label must point at somewhere that exists, otherwise the QR leads to a dead page.
+    // A room or shelf counts even when it has no bins yet.
+    const found = await Promise.all(
+      locations.map(async l => {
+        if (l.binId) return (await prisma.inventoryBin.count({ where: { id: l.binId } })) > 0;
+        const room = l.room ?? null;
+        if ((await prisma.inventoryBin.count({ where: { room, ...(l.shelf ? { shelf: l.shelf } : {}) } })) > 0) return true;
+        return l.shelf
+          ? (await prisma.inventoryShelf.count({ where: { name: l.shelf, room: room ? { name: room } : null } })) > 0
+          : !!room && (await prisma.inventoryRoom.count({ where: { name: room } })) > 0;
+      })
     );
-    if (counts.some(count => count === 0)) {
+    if (found.some(exists => !exists)) {
       throw createError('Some selected bins, shelves or rooms no longer exist. Refresh and try again.', 404, 'LOCATIONS_NOT_FOUND');
     }
 
