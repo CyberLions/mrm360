@@ -51,6 +51,15 @@
             <span class="mt-1 block text-sm text-gray-400">{{
               option.description
             }}</span>
+            <button
+              v-if="hasPrintHelp(option)"
+              type="button"
+              class="mt-2 inline-flex items-center text-sm text-blue-400 hover:text-blue-300"
+              @click.prevent.stop="showPrintHelp = true"
+            >
+              <InformationCircleIcon class="mr-1 h-4 w-4" />How to print this
+              size on Windows
+            </button>
           </span>
         </label>
       </div>
@@ -262,6 +271,7 @@
       />
     </div>
 
+    <LabelPrintHelpModal v-if="showPrintHelp" @close="showPrintHelp = false" />
     <LabelGenerationModal
       v-if="job && activeTemplate"
       :key="job.key"
@@ -277,8 +287,16 @@ import { computed, onMounted, reactive, ref, watch, watchEffect } from "vue";
 import apiService from "@/services/api";
 import PaginationBar from "@/components/inventory/PaginationBar.vue";
 import LabelGenerationModal from "@/components/inventory/LabelGenerationModal.vue";
+import LabelPrintHelpModal from "@/components/inventory/LabelPrintHelpModal.vue";
+import { hasPrintHelp } from "@/utils/labelPrintHelp";
 import IconButton from "@/components/common/IconButton.vue";
-import { FunnelIcon, PrinterIcon, TagIcon, XMarkIcon } from "@heroicons/vue/24/outline";
+import {
+  FunnelIcon,
+  InformationCircleIcon,
+  PrinterIcon,
+  TagIcon,
+  XMarkIcon,
+} from "@heroicons/vue/24/outline";
 import type {
   InventoryBin,
   InventoryCategory,
@@ -295,6 +313,7 @@ const items = ref<InventoryItem[]>([]),
   maxLabels = ref(1000),
   templateId = ref(readStoredTemplate()),
   loading = ref(true),
+  showPrintHelp = ref(false),
   error = ref(""),
   page = ref(1),
   pageSize = ref(50),

@@ -60,6 +60,14 @@
             paper size and turn scaling off (100%).
           </p>
         </div>
+        <button
+          v-if="hasPrintHelp(template)"
+          class="flex items-center text-sm text-blue-400 hover:text-blue-300"
+          @click="showHelp = true"
+        >
+          <InformationCircleIcon class="mr-1 h-4 w-4" />First time? How to set
+          up this size on Windows
+        </button>
         <div class="flex flex-wrap justify-end gap-2">
           <button
             class="flex items-center rounded-lg bg-gray-700 px-4 py-2 text-white hover:bg-gray-600"
@@ -102,6 +110,7 @@
         </button>
       </div>
     </div>
+    <LabelPrintHelpModal v-if="showHelp" @close="showHelp = false" />
   </div>
 </template>
 
@@ -110,9 +119,12 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import {
   ArrowDownTrayIcon,
   CheckCircleIcon,
+  InformationCircleIcon,
   PrinterIcon,
 } from "@heroicons/vue/24/outline";
 import apiService from "@/services/api";
+import LabelPrintHelpModal from "@/components/inventory/LabelPrintHelpModal.vue";
+import { hasPrintHelp } from "@/utils/labelPrintHelp";
 import type {
   InventoryLabelJobStatus,
   InventoryLabelTemplate,
@@ -134,6 +146,7 @@ const phase = ref<Phase>("working"),
   status = ref<InventoryLabelJobStatus | null>(null),
   error = ref(""),
   slow = ref(false),
+  showHelp = ref(false),
   pdfUrl = ref("");
 let stopped = false;
 

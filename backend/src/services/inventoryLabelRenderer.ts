@@ -387,7 +387,7 @@ export async function renderLabelPdf(
     regular: await doc.embedFont(StandardFonts.Helvetica),
     bold: await doc.embedFont(StandardFonts.HelveticaBold),
     italic: await doc.embedFont(StandardFonts.HelveticaOblique),
-    mono: await doc.embedFont(StandardFonts.Courier)
+    mono: await doc.embedFont(StandardFonts.CourierBold)
   };
   logoBytes ??= readFile(LOGO_PATH);
   const logo = await doc.embedPng(await logoBytes);
