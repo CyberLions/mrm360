@@ -82,6 +82,14 @@ const routes: RouteRecordRaw[] = [
     meta: { title: 'Report a lost item', public: true }
   },
   {
+    // Target of every shelf/room label QR. Members sign in (the guard redirects
+    // anonymous scans to login and back) and see what is stored there.
+    path: '/inventory/location',
+    name: 'InventoryLocation',
+    component: () => import('@/pages/inventory/InventoryLocation.vue'),
+    meta: { title: 'Inventory location', requiresAuth: true }
+  },
+  {
     path: '/checkin/:code',
     name: 'PublicCheckIn',
     component: () => import('@/pages/checkin/PublicCheckIn.vue'),

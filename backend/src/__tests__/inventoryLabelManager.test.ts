@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockCount, mockAdd, mockGetJob, mockLoadPdf } = vi.hoisted(() => ({
+const { mockCount, mockBinCount, mockAdd, mockGetJob, mockLoadPdf } = vi.hoisted(() => ({
   mockCount: vi.fn(),
+  mockBinCount: vi.fn(),
   mockAdd: vi.fn(),
   mockGetJob: vi.fn(),
   mockLoadPdf: vi.fn(),
 }));
 
-vi.mock('@/models/prismaClient', () => ({ prisma: { inventoryItem: { count: mockCount } } }));
+vi.mock('@/models/prismaClient', () => ({ prisma: { inventoryItem: { count: mockCount }, inventoryBin: { count: mockBinCount } } }));
 vi.mock('@/tasks/queue', () => ({ inventoryLabelQueue: { add: mockAdd, getJob: mockGetJob } }));
 vi.mock('@/services/inventoryLabelStore', () => ({ loadLabelPdf: mockLoadPdf }));
 
@@ -51,6 +52,62 @@ describe('InventoryLabelManager', () => {
       mockCount.mockResolvedValue(1);
       await expect(manager.requestLabels({ itemIds: ['a', 'b'], template: '3x2-two-column', requestedById: 'user-1' })).rejects.toMatchObject({ statusCode: 404 });
       expect(mockAdd).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('requestLocationLabels', () => {
+    const base = { baseUrl: 'https://mrm.example', template: '3x2-two-column' as const, requestedById: 'user-1' };
+
+    it('de-duplicates locations, checks each has bins, and enqueues with the base URL', async () => {
+      mockBinCount.mockResolvedValue(2);
+      mockAdd.mockResolvedValue({ id: 9 });
+      const result = await manager.requestLocationLabels({
+        ...base,
+        locations: [{ room: 'Lab 1', shelf: '2' }, { room: 'Lab 1', shelf: '2' }, { room: 'Lab 2', shelf: null }],
+      });
+      expect(result).toEqual({ jobId: '9' });
+      expect(mockBinCount).toHaveBeenNthCalledWith(1, { where: { room: 'Lab 1', shelf: '2' } });
+      expect(mockBinCount).toHaveBeenNthCalledWith(2, { where: { room: 'Lab 2' } });
+      expect(mockAdd).toHaveBeenCalledWith('generate-location-labels', {
+        locations: [{ room: 'Lab 1', shelf: '2' }, { room: 'Lab 2', shelf: null }],
+        baseUrl: 'https://mrm.example',
+        template: '3x2-two-column',
+        requestedById: 'user-1',
+      });
+    });
+
+    it('validates bin labels by id, and de-duplicates them by id', async () => {
+      mockBinCount.mockResolvedValue(1);
+      mockAdd.mockResolvedValue({ id: 3 });
+      await manager.requestLocationLabels({
+        ...base,
+        locations: [
+          { room: null, shelf: null, binId: 'bin-1' },
+          { room: 'Lab 1', shelf: '2', binId: 'bin-1' },
+          { room: null, shelf: null, binId: 'bin-2' },
+        ],
+      });
+      expect(mockBinCount).toHaveBeenCalledTimes(2);
+      expect(mockBinCount).toHaveBeenNthCalledWith(1, { where: { id: 'bin-1' } });
+      expect(mockBinCount).toHaveBeenNthCalledWith(2, { where: { id: 'bin-2' } });
+      expect(mockAdd.mock.calls[0][1].locations).toHaveLength(2);
+    });
+
+    it('rejects locations that have no bins', async () => {
+      mockBinCount.mockResolvedValueOnce(1).mockResolvedValueOnce(0);
+      await expect(
+        manager.requestLocationLabels({ ...base, locations: [{ room: 'A', shelf: null }, { room: 'B', shelf: null }] })
+      ).rejects.toMatchObject({ statusCode: 404 });
+      expect(mockAdd).not.toHaveBeenCalled();
+    });
+
+    it('reports progress totals from the location count', async () => {
+      mockGetJob.mockResolvedValue({
+        data: { locations: [{ room: 'A', shelf: null }, { room: 'B', shelf: null }], baseUrl: 'x', template: '3x2-two-column', requestedById: 'user-1' },
+        progress: { done: 1 },
+        getState: vi.fn().mockResolvedValue('active'),
+      });
+      expect((await manager.getStatus('1', 'user-1')).progress).toEqual({ done: 1, total: 2 });
     });
   });
 

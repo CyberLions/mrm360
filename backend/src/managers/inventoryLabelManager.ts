@@ -1,7 +1,7 @@
 import { prisma } from '@/models/prismaClient';
 import { inventoryLabelQueue } from '@/tasks/queue';
 import { loadLabelPdf } from '@/services/inventoryLabelStore';
-import { LabelTemplateId, MAX_LABELS_PER_JOB } from '@/services/inventoryLabelTemplates';
+import { LabelTemplateId, LocationLabelRequest, MAX_LABELS_PER_JOB } from '@/services/inventoryLabelTemplates';
 import { createError } from '@/middleware/errorHandler';
 
 export interface InventoryLabelJobData {
@@ -9,6 +9,19 @@ export interface InventoryLabelJobData {
   template: LabelTemplateId;
   requestedById: string;
 }
+
+export interface LocationLabelJobData {
+  locations: LocationLabelRequest[];
+  /** Origin the QR codes point at, e.g. https://mrm.psuccso.org */
+  baseUrl: string;
+  template: LabelTemplateId;
+  requestedById: string;
+}
+
+export type LabelJobData = InventoryLabelJobData | LocationLabelJobData;
+
+export const isLocationJob = (data: LabelJobData): data is LocationLabelJobData => 'locations' in data;
+export const labelCount = (data: LabelJobData) => (isLocationJob(data) ? data.locations.length : data.itemIds.length);
 
 export interface InventoryLabelJobResult {
   itemCount: number;
@@ -46,10 +59,36 @@ export class InventoryLabelManager {
     return { jobId: String(job.id) };
   }
 
+  async requestLocationLabels(params: {
+    locations: LocationLabelRequest[];
+    baseUrl: string;
+    template: LabelTemplateId;
+    requestedById: string;
+  }): Promise<{ jobId: string }> {
+    const key = (l: LocationLabelRequest) => JSON.stringify(l.binId ? ['bin', l.binId] : [l.room ?? null, l.shelf ?? null]);
+    const locations = [...new Map(params.locations.map(l => [key(l), l])).values()];
+    if (locations.length > MAX_LABELS_PER_JOB) {
+      throw createError(`Select at most ${MAX_LABELS_PER_JOB} locations per label run`, 400, 'TOO_MANY_ITEMS');
+    }
+    // Every label must point at somewhere that has bins, otherwise the QR leads to an empty page.
+    const counts = await Promise.all(
+      locations.map(l =>
+        prisma.inventoryBin.count({ where: l.binId ? { id: l.binId } : { room: l.room ?? null, ...(l.shelf ? { shelf: l.shelf } : {}) } })
+      )
+    );
+    if (counts.some(count => count === 0)) {
+      throw createError('Some selected bins, shelves or rooms no longer exist. Refresh and try again.', 404, 'LOCATIONS_NOT_FOUND');
+    }
+
+    const data: LocationLabelJobData = { locations, baseUrl: params.baseUrl, template: params.template, requestedById: params.requestedById };
+    const job = await inventoryLabelQueue.add('generate-location-labels', data);
+    return { jobId: String(job.id) };
+  }
+
   async getStatus(jobId: string, requestedById: string): Promise<InventoryLabelJobStatus> {
     const job = await this.findOwnedJob(jobId, requestedById);
     const state = STATE_MAP[await job.getState()] ?? 'queued';
-    const total = job.data.itemIds.length;
+    const total = labelCount(job.data);
     const progress = typeof job.progress === 'object' && job.progress !== null ? (job.progress as { done: number }) : { done: 0 };
     return {
       jobId,

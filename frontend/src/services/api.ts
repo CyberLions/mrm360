@@ -23,7 +23,7 @@ import type {
   WorkshopSeriesCreate,
   WorkshopSeriesUpdate,
   BadgeClass
-  , InventoryItem, InventoryBin, InventoryCategory, ItemLoan, InventoryLabelTemplate, InventoryLabelJobStatus
+  , InventoryItem, InventoryBin, InventoryCategory, ItemLoan, InventoryLabelTemplate, InventoryLabelJobStatus, InventoryLocationSpec, InventoryLocationView
 } from '@/types/api'
 
 class ApiService {
@@ -393,6 +393,15 @@ class ApiService {
 
   async requestInventoryLabels(itemIds: string[], template: string): Promise<string> {
     return (await this.api.post('/inventory/labels', { itemIds, template })).data.jobId
+  }
+
+  async requestInventoryLocationLabels(locations: InventoryLocationSpec[], template: string): Promise<string> {
+    return (await this.api.post('/inventory/labels', { locations, template })).data.jobId
+  }
+
+  async getInventoryLocation(query: { room?: string | null; shelf?: string | null; binId?: string | null }): Promise<InventoryLocationView> {
+    const { room, shelf, binId } = query
+    return (await this.api.get('/inventory/location', { params: { ...(room ? { room } : {}), ...(shelf ? { shelf } : {}), ...(binId ? { bin: binId } : {}) } })).data
   }
 
   async getInventoryLabelJob(jobId: string): Promise<InventoryLabelJobStatus> {

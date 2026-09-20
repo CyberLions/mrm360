@@ -3,8 +3,8 @@
     <div>
       <h1 class="text-2xl font-bold text-gray-100">Print Labels</h1>
       <p class="mt-2 text-sm text-gray-400">
-        Filter to a room, shelf or bin, tick the items you need, then generate a
-        printable PDF of barcode labels.
+        Print barcode labels for items, or bin, shelf and room labels whose QR
+        codes open a page listing what is stored there.
       </p>
     </div>
 
@@ -65,6 +65,36 @@
       </div>
     </div>
 
+    <div
+      class="inline-flex rounded-lg border border-gray-700 bg-gray-800 p-1"
+      role="tablist"
+    >
+      <button
+        v-for="tab in modes"
+        :key="tab.id"
+        role="tab"
+        :aria-selected="mode === tab.id"
+        class="rounded-md px-4 py-2 text-sm font-medium transition-colors"
+        :class="
+          mode === tab.id
+            ? 'bg-blue-600 text-white'
+            : 'text-gray-300 hover:bg-gray-700'
+        "
+        @click="mode = tab.id"
+      >
+        {{ tab.label }}
+      </button>
+    </div>
+
+    <LocationLabelPicker
+      v-if="mode === 'locations'"
+      :bins="bins"
+      :items="items"
+      :disabled="!activeTemplate"
+      @generate="generateLocations"
+    />
+
+    <template v-else>
     <!-- Filters -->
     <div
       class="rounded-xl border border-gray-700/50 bg-gray-800/50 p-6 shadow-xl"
@@ -270,12 +300,14 @@
         @change="page = $event"
       />
     </div>
+    </template>
 
     <LabelPrintHelpModal v-if="showPrintHelp" @close="showPrintHelp = false" />
     <LabelGenerationModal
       v-if="job && activeTemplate"
       :key="job.key"
       :item-ids="job.itemIds"
+      :locations="job.locations"
       :template="activeTemplate"
       @close="job = null"
     />
@@ -287,6 +319,7 @@ import { computed, onMounted, reactive, ref, watch, watchEffect } from "vue";
 import apiService from "@/services/api";
 import PaginationBar from "@/components/inventory/PaginationBar.vue";
 import LabelGenerationModal from "@/components/inventory/LabelGenerationModal.vue";
+import LocationLabelPicker from "@/components/inventory/LocationLabelPicker.vue";
 import LabelPrintHelpModal from "@/components/inventory/LabelPrintHelpModal.vue";
 import { hasPrintHelp } from "@/utils/labelPrintHelp";
 import IconButton from "@/components/common/IconButton.vue";
@@ -302,8 +335,13 @@ import type {
   InventoryCategory,
   InventoryItem,
   InventoryLabelTemplate,
+  InventoryLocationSpec,
 } from "@/types/api";
 
+const modes = [
+  { id: "items", label: "Items" },
+  { id: "locations", label: "Bins, shelves & rooms" },
+] as const;
 const TEMPLATE_STORAGE_KEY = "inventoryLabelTemplate";
 
 const items = ref<InventoryItem[]>([]),
@@ -318,7 +356,12 @@ const items = ref<InventoryItem[]>([]),
   page = ref(1),
   pageSize = ref(50),
   selected = ref(new Set<string>()),
-  job = ref<{ key: number; itemIds: string[] } | null>(null),
+  job = ref<{
+    key: number;
+    itemIds?: string[];
+    locations?: InventoryLocationSpec[];
+  } | null>(null),
+  mode = ref<"items" | "locations">("items"),
   headerCheckbox = ref<HTMLInputElement | null>(null),
   filters = reactive({
     search: "",
@@ -445,6 +488,9 @@ function clearFilters() {
 }
 function generate(itemIds: string[]) {
   job.value = { key: ++jobCounter, itemIds };
+}
+function generateLocations(locations: InventoryLocationSpec[]) {
+  job.value = { key: ++jobCounter, locations };
 }
 
 async function load() {

@@ -23,7 +23,7 @@
           }}
         </h2>
         <p class="mt-1 text-sm text-gray-400">
-          {{ itemIds.length }} {{ itemIds.length === 1 ? "label" : "labels" }} ·
+          {{ count }} {{ count === 1 ? "label" : "labels" }} ·
           {{ template.name }}
         </p>
       </div>
@@ -128,12 +128,18 @@ import { hasPrintHelp } from "@/utils/labelPrintHelp";
 import type {
   InventoryLabelJobStatus,
   InventoryLabelTemplate,
+  InventoryLocationSpec,
 } from "@/types/api";
 
+// Either item labels (itemIds) or shelf/room labels (locations).
 const props = defineProps<{
-  itemIds: string[];
+  itemIds?: string[];
+  locations?: InventoryLocationSpec[];
   template: InventoryLabelTemplate;
 }>();
+const count = computed(
+  () => props.locations?.length ?? props.itemIds?.length ?? 0,
+);
 defineEmits<{ close: [] }>();
 
 const POLL_INTERVAL_MS = 800;
@@ -183,10 +189,15 @@ async function run() {
   error.value = "";
   slow.value = false;
   try {
-    const jobId = await apiService.requestInventoryLabels(
-      props.itemIds,
-      props.template.id,
-    );
+    const jobId = props.locations
+      ? await apiService.requestInventoryLocationLabels(
+          props.locations,
+          props.template.id,
+        )
+      : await apiService.requestInventoryLabels(
+          props.itemIds ?? [],
+          props.template.id,
+        );
     await poll(jobId);
   } catch (e: any) {
     if (stopped) return;

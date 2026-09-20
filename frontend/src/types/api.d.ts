@@ -57,6 +57,23 @@ export interface InventoryItem {
   createdAt?: string
   updatedAt?: string
 }
+export interface InventoryLocationSpec { room: string | null; shelf: string | null; binId?: string | null }
+export interface InventoryLocationItem {
+  id: string
+  name: string
+  barcode: string
+  category: string | null
+  status: 'available' | 'checked-out' | 'with-you' | 'lost'
+}
+export interface InventoryLocationBin { id: string; name: string; shelf: string | null; code: string | null; description: string | null; items: InventoryLocationItem[] }
+export interface InventoryLocationView {
+  room: string | null
+  shelf: string | null
+  /** Set when the view is a single bin. */
+  binId: string | null
+  bins: InventoryLocationBin[]
+  totals: { items: number; available: number }
+}
 export interface InventoryLabelTemplate { id: string; name: string; description: string; widthIn: number; heightIn: number; dpi: number }
 export interface InventoryLabelJobStatus {
   jobId: string

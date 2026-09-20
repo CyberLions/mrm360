@@ -18,6 +18,16 @@ import {
   setFillingGrayscaleColor
 } from 'pdf-lib';
 import {
+  LOCATION_CHECKIN_INSTRUCTIONS,
+  LOCATION_CHECKOUT_INSTRUCTIONS,
+  LOCATION_INSTRUCTIONS_SHORT,
+  LOCATION_KIOSK_CAPTION,
+  LOCATION_WARNING,
+  LOCATION_LOOKUP_CAPTION,
+  buildKioskUrl,
+  LocationLabelSpec,
+  buildLocationUrl,
+  describeLocation,
   LABEL_OWNER,
   LABEL_REPORT,
   LABEL_WARNING,
@@ -159,6 +169,11 @@ function drawCentered(page: PDFPage, text: string, font: PDFFont, size: number, 
 // Barcode / QR
 // ---------------------------------------------------------------------------
 
+/** Rounds a point to the nearest printer dot; pages are a whole number of dots, so this aligns with the head. */
+function snapToDots(ctx: LabelContext, x: number, y: number): { x: number; y: number } {
+  return { x: Math.round(x / ctx.dot) * ctx.dot, y: Math.round(y / ctx.dot) * ctx.dot };
+}
+
 /**
  * Draws a Code 128 barcode as vector bars. When the box is wide enough for
  * >= 2 printer dots per module the module width is snapped to whole dots so
@@ -176,9 +191,12 @@ function drawCode128(ctx: LabelContext, value: string, box: { x: number; y: numb
   if (dotsPerModule >= 2) moduleWidth = Math.floor(dotsPerModule) * ctx.dot;
 
   let x = box.x + (box.width - moduleWidth * modules) / 2;
+  let y = box.y;
+  // Whole-dot modules only stay crisp if the bars also start on a dot boundary.
+  if (dotsPerModule >= 2) ({ x, y } = snapToDots(ctx, x, y));
   const ops = [pushGraphicsState(), setFillingGrayscaleColor(0)];
   sbs.forEach((width, i) => {
-    if (i % 2 === 0) ops.push(rectangle(x, box.y, width * moduleWidth, box.height));
+    if (i % 2 === 0) ops.push(rectangle(x, y, width * moduleWidth, box.height));
     x += width * moduleWidth;
   });
   ops.push(fill(), popGraphicsState());
@@ -211,8 +229,50 @@ function drawQr(ctx: LabelContext, box: { x: number; y: number; size: number }):
   const dotsPerModule = moduleSize / ctx.dot;
   if (dotsPerModule >= 1) moduleSize = Math.floor(dotsPerModule) * ctx.dot;
   const size = moduleSize * modules;
-  ctx.page.drawPage(ctx.qr.page, { x: box.x + (box.size - size) / 2, y: box.y, width: size, height: size });
+  const origin = dotsPerModule >= 1 ? snapToDots(ctx, box.x + (box.size - size) / 2, box.y) : { x: box.x + (box.size - size) / 2, y: box.y };
+  ctx.page.drawPage(ctx.qr.page, { x: origin.x, y: origin.y, width: size, height: size });
   return size;
+}
+
+interface QrSymbol {
+  pixs: number[];
+  pixx: number;
+  pixy: number;
+}
+
+/** Encodes text as a QR symbol; `version` forces a larger symbol than the text needs. */
+function qrSymbol(text: string, version?: number): QrSymbol {
+  const options: RawOptions & { eclevel: string; version?: number } = { bcid: 'qrcode', text, eclevel: 'M', ...(version ? { version } : {}) };
+  return (bwipjs.raw(options) as QrSymbol[])[0];
+}
+
+/** Draws a QR symbol as vector modules (whole-dot modules when possible); returns the size used. */
+function drawQrSymbol(ctx: LabelContext, symbol: QrSymbol, box: { x: number; y: number; size: number }): number {
+  let moduleSize = box.size / symbol.pixx;
+  const dotsPerModule = moduleSize / ctx.dot;
+  if (dotsPerModule >= 1) moduleSize = Math.floor(dotsPerModule) * ctx.dot;
+  const size = moduleSize * symbol.pixx;
+  let x0 = box.x + (box.size - size) / 2;
+  let y0 = box.y;
+  if (dotsPerModule >= 1) ({ x: x0, y: y0 } = snapToDots(ctx, x0, y0));
+  const ops = [pushGraphicsState(), setFillingGrayscaleColor(0)];
+  for (let row = 0; row < symbol.pixy; row++) {
+    for (let col = 0; col < symbol.pixx; col++) {
+      // bwip-js rows run top to bottom; PDF y runs bottom to top.
+      if (symbol.pixs[row * symbol.pixx + col]) ops.push(rectangle(x0 + col * moduleSize, y0 + (symbol.pixy - 1 - row) * moduleSize, moduleSize, moduleSize));
+    }
+  }
+  ops.push(fill(), popGraphicsState());
+  ctx.page.pushOperators(...ops);
+  return size;
+}
+
+/** Encodes several texts at one shared QR version so they have the same module count, and so print at the same size. */
+export function matchedQrSymbols(texts: string[]): QrSymbol[] {
+  const symbols = texts.map(text => qrSymbol(text));
+  const modules = Math.max(...symbols.map(s => s.pixx));
+  const version = (modules - 17) / 4;
+  return symbols.map((symbol, i) => (symbol.pixx === modules ? symbol : qrSymbol(texts[i], version)));
 }
 
 function drawLogo(ctx: LabelContext, box: { x: number; y: number; width: number; height: number }) {
@@ -353,9 +413,154 @@ const layout4x6: Layout = (ctx, item) => {
   drawCode128(ctx, item.barcode, { x: margin, y: blockBottom + codeText.size + 6, width: contentW, height: barcodeH });
 };
 
+interface LocationLayoutItem {
+  kind: string;
+  title: string;
+  subtitle: string;
+  /** Opens the page listing what is stored here. */
+  url: string;
+  /** Opens the kiosk, where items are checked in and out. */
+  kioskUrl: string;
+}
+
+type LocationLayout = (ctx: LabelContext, item: LocationLayoutItem) => void;
+
+/** Two labelled QR codes side by side, left edge at x, each `size` wide with `gap` between; returns the top y. */
+function drawQrPair(
+  ctx: LabelContext,
+  item: LocationLayoutItem,
+  box: { x: number; y: number; size: number; gap: number; captionMax: number; captionMin: number }
+): number {
+  const { fonts, page } = ctx;
+  const captionGap = 3;
+  const captions = [LOCATION_LOOKUP_CAPTION, LOCATION_KIOSK_CAPTION].map(text => fitLine(text, fonts.bold, box.captionMax, box.captionMin, box.size));
+  const captionSize = Math.min(...captions.map(c => c.size));
+  const qrY = box.y + captionSize + captionGap;
+  const symbols = matchedQrSymbols([item.url, item.kioskUrl]);
+  symbols.forEach((symbol, i) => {
+    const x = box.x + i * (box.size + box.gap);
+    drawQrSymbol(ctx, symbol, { x, y: qrY, size: box.size });
+    drawCentered(page, captions[i].text, fonts.bold, captionSize, x, box.size, box.y);
+  });
+  return qrY + box.size;
+}
+
+/** 3" x 2": title, short instructions and the two QRs on the left; logo and notices on the right. */
+const locationLayout3x2: LocationLayout = (ctx, item) => {
+  const { page, fonts, width, height } = ctx;
+  const split = 1.9 * PT_PER_IN;
+  const leftX = MARGIN_PT;
+  const leftW = split - leftX - 6;
+  const rightX = split;
+  const rightW = width - split;
+  const black = rgb(0, 0, 0);
+
+  page.drawLine({ start: { x: split, y: MARGIN_PT + 2 }, end: { x: split, y: height - MARGIN_PT - 2 }, thickness: 0.6, color: black });
+
+  // Left column, top-down: kind, title, subtitle, instructions. The QR pair is anchored to the
+  // bottom and as wide as the column allows; the title shrinks to whatever height is left.
+  const qrGap = 4;
+  const captionH = 6.5 + 3;
+  const instructions = fitParagraph(LOCATION_INSTRUCTIONS_SHORT, fonts.regular, { maxSize: 6.5, minSize: 5, maxWidth: leftW, maxLines: 3 });
+  const instructionsH = instructions.lines.length * instructions.size * LEADING;
+  const subtitle = item.subtitle ? fitLine(item.subtitle, fonts.regular, 8, 6, leftW) : null;
+  const subtitleH = subtitle ? subtitle.size + 2 : 0;
+  const kindH = 7 + 2;
+  const minTitleH = 8 * LEADING * 2;
+  const chrome = kindH + subtitleH + instructionsH + 8; // fixed text above the QRs, plus gaps
+  const available = height - MARGIN_PT * 2;
+  const qrSize = Math.max(36, Math.min((leftW - qrGap) / 2, available - captionH - chrome - minTitleH));
+  const titleBudget = available - captionH - qrSize - chrome;
+
+  let cursor = height - MARGIN_PT;
+  cursor -= 7;
+  page.drawText(item.kind, { x: leftX, y: cursor, size: 7, font: fonts.bold, color: black });
+  const title = fitParagraph(item.title, fonts.bold, { maxSize: 16, minSize: 8, maxWidth: leftW, maxLines: 2, maxHeight: titleBudget });
+  cursor -= 2;
+  for (const line of title.lines) {
+    cursor -= title.size;
+    page.drawText(line, { x: leftX, y: cursor, size: title.size, font: fonts.bold, color: black });
+    cursor -= title.size * (LEADING - 1);
+  }
+  if (subtitle) {
+    cursor -= subtitle.size + 1;
+    page.drawText(subtitle.text, { x: leftX, y: cursor, size: subtitle.size, font: fonts.regular, color: black });
+  }
+  drawParagraph(page, instructions, fonts.regular, leftX, cursor - 4);
+  drawQrPair(ctx, item, { x: leftX, y: MARGIN_PT, size: qrSize, gap: qrGap, captionMax: 6.5, captionMin: 5 });
+
+  // Right column, top-down: logo, "Property of" and the disclaimer.
+  const notice = { maxSize: 6, minSize: 5, maxWidth: rightW - 10, maxLines: 4 };
+  const owner = fitParagraph(LABEL_OWNER, fonts.bold, notice);
+  const warning = fitParagraph(LOCATION_WARNING, fonts.italic, notice);
+  const noticesH = [owner, warning].reduce((sum, p) => sum + p.lines.length * p.size * LEADING + 4, 0);
+  const logoH = height - MARGIN_PT * 2 - noticesH - 4;
+  drawLogo(ctx, { x: rightX + 6, y: height - MARGIN_PT - logoH, width: rightW - 12, height: logoH });
+  let y = drawParagraph(page, owner, fonts.bold, rightX + 5, height - MARGIN_PT - logoH - 2) - 4;
+  drawParagraph(page, warning, fonts.italic, rightX + 5, y);
+};
+
+/** 4" x 6": title + logo on top, two big QRs, then the full instructions and notices. */
+const locationLayout4x6: LocationLayout = (ctx, item) => {
+  const { page, fonts, width, height } = ctx;
+  const margin = 18;
+  const contentW = width - margin * 2;
+  const black = rgb(0, 0, 0);
+
+  // Header: logo on the right, kind + title + subtitle on the left.
+  const logoW = 70;
+  const headerW = contentW - logoW - 10;
+  drawLogo(ctx, { x: width - margin - logoW, y: height - margin - 74, width: logoW, height: 74 });
+  let cursor = height - margin;
+  cursor -= 10;
+  page.drawText(item.kind, { x: margin, y: cursor, size: 10, font: fonts.bold, color: black });
+  const title = fitParagraph(item.title, fonts.bold, { maxSize: 34, minSize: 14, maxWidth: headerW, maxLines: 3, maxHeight: 74 });
+  cursor -= 3;
+  for (const line of title.lines) {
+    cursor -= title.size;
+    page.drawText(line, { x: margin, y: cursor, size: title.size, font: fonts.bold, color: black });
+    cursor -= title.size * (LEADING - 1);
+  }
+  if (item.subtitle) {
+    const subtitle = fitLine(item.subtitle, fonts.regular, 16, 9, headerW);
+    cursor -= subtitle.size + 2;
+    page.drawText(subtitle.text, { x: margin, y: cursor, size: subtitle.size, font: fonts.regular, color: black });
+  }
+
+  // Bottom block: instructions, then owner + disclaimer.
+  const paragraphs = [
+    { p: fitParagraph(LOCATION_CHECKOUT_INSTRUCTIONS, fonts.regular, { maxSize: 10, minSize: 8, maxWidth: contentW, maxLines: 3 }), f: fonts.regular },
+    { p: fitParagraph(LOCATION_CHECKIN_INSTRUCTIONS, fonts.regular, { maxSize: 10, minSize: 8, maxWidth: contentW, maxLines: 3 }), f: fonts.regular },
+    { p: fitParagraph(LABEL_OWNER, fonts.bold, { maxSize: 10, minSize: 8, maxWidth: contentW, maxLines: 2 }), f: fonts.bold },
+    { p: fitParagraph(LOCATION_WARNING, fonts.italic, { maxSize: 10, minSize: 8, maxWidth: contentW, maxLines: 2 }), f: fonts.italic }
+  ];
+  const gaps = [6, 10, 3, 0];
+  const blockH = paragraphs.reduce((sum, { p }, i) => sum + p.lines.length * p.size * LEADING + gaps[i], 0);
+  let y = margin + blockH;
+  const ruleY = y + 6;
+  page.drawLine({ start: { x: margin, y: ruleY }, end: { x: width - margin, y: ruleY }, thickness: 1, color: black });
+  paragraphs.forEach(({ p, f }, i) => {
+    y = drawParagraph(page, p, f, margin, y) - gaps[i];
+  });
+
+  // Two QRs side by side, centred between the header and the rule.
+  const gap = 16;
+  const region = { top: cursor - 14, bottom: ruleY + 14 };
+  const size = Math.max(70, Math.min((contentW - gap) / 2, region.top - region.bottom - 24));
+  const totalW = size * 2 + gap;
+  const blockH2 = size + 3 + 12;
+  const bottom = region.bottom + Math.max(0, (region.top - region.bottom - blockH2) / 2);
+  drawQrPair(ctx, item, { x: margin + (contentW - totalW) / 2, y: bottom, size, gap, captionMax: 12, captionMin: 8 });
+};
+
 const LAYOUTS: Record<LabelTemplateId, Layout> = {
   '3x2-two-column': layout3x2,
   '4x6-large': layout4x6
+};
+
+const LOCATION_LAYOUTS: Record<LabelTemplateId, LocationLayout> = {
+  '3x2-two-column': locationLayout3x2,
+  '4x6-large': locationLayout4x6
 };
 
 // ---------------------------------------------------------------------------
@@ -369,18 +574,19 @@ export interface RenderOptions {
   onProgress?: (done: number, total: number) => void | Promise<void>;
 }
 
-export async function renderLabelPdf(
-  items: LabelItem[],
+async function renderPages<T>(
   templateId: LabelTemplateId,
-  options: RenderOptions = {}
+  title: string,
+  entries: T[],
+  draw: (ctx: LabelContext, entry: T, safe: (text: string) => string) => void,
+  options: RenderOptions
 ): Promise<Uint8Array> {
   const template: LabelTemplateInfo = getLabelTemplate(templateId);
-  const layout = LAYOUTS[templateId];
   const width = template.widthIn * PT_PER_IN;
   const height = template.heightIn * PT_PER_IN;
 
   const doc = await PDFDocument.create();
-  doc.setTitle(`Inventory labels (${template.name})`);
+  doc.setTitle(`${title} (${template.name})`);
   doc.setCreator('MRM360');
 
   const fonts: Fonts = {
@@ -394,22 +600,50 @@ export async function renderLabelPdf(
   const qr = await embedQr(doc, LOST_ITEM_URL);
   const safe = makeSafeText(fonts.bold);
 
-  for (let i = 0; i < items.length; i++) {
-    const source = items[i];
+  for (let i = 0; i < entries.length; i++) {
     const page = doc.addPage([width, height]);
-    layout(
-      { page, fonts, logo, qr, width, height, dot: PT_PER_IN / template.dpi },
-      {
-        barcode: source.barcode,
-        barcodeText: safe(source.barcode),
-        name: safe(source.name),
-        categoryName: source.categoryName ? safe(source.categoryName) : ''
-      }
-    );
-    await options.onProgress?.(i + 1, items.length);
+    draw({ page, fonts, logo, qr, width, height, dot: PT_PER_IN / template.dpi }, entries[i], safe);
+    await options.onProgress?.(i + 1, entries.length);
     // Yield regularly so BullMQ can renew the job lock during big batches.
     if ((i + 1) % 25 === 0) await new Promise(resolve => setImmediate(resolve));
   }
 
   return doc.save();
+}
+
+export function renderLabelPdf(items: LabelItem[], templateId: LabelTemplateId, options: RenderOptions = {}): Promise<Uint8Array> {
+  const layout = LAYOUTS[templateId];
+  return renderPages(
+    templateId,
+    'Inventory labels',
+    items,
+    (ctx, source, safe) =>
+      layout(ctx, {
+        barcode: source.barcode,
+        barcodeText: safe(source.barcode),
+        name: safe(source.name),
+        categoryName: source.categoryName ? safe(source.categoryName) : ''
+      }),
+    options
+  );
+}
+
+/** Shelf / room labels: each QR opens that location's page under `baseUrl`. */
+export function renderLocationLabelPdf(
+  locations: LocationLabelSpec[],
+  baseUrl: string,
+  templateId: LabelTemplateId,
+  options: RenderOptions = {}
+): Promise<Uint8Array> {
+  const layout = LOCATION_LAYOUTS[templateId];
+  return renderPages(
+    templateId,
+    'Shelf and room labels',
+    locations,
+    (ctx, spec, safe) => {
+      const { kind, title, subtitle } = describeLocation(spec);
+      layout(ctx, { kind, title: safe(title), subtitle: safe(subtitle), url: buildLocationUrl(baseUrl, spec), kioskUrl: buildKioskUrl(baseUrl) });
+    },
+    options
+  );
 }
