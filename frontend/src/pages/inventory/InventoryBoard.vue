@@ -243,7 +243,7 @@
           placeholder="LAPTOP-001, Dell laptop, Locker 4, Room 101, GBM Equipment, 14-inch, charger included"
         ></textarea
         ><template v-else
-          ><div class="flex gap-2">
+          ><div v-if="quantity === 1" class="flex gap-2">
             <input
               v-model="draft.barcode"
               autofocus
@@ -259,13 +259,26 @@
               Auto-generate
             </button>
           </div>
+          <p v-else class="rounded-md bg-gray-900 p-3 text-sm text-gray-400">
+            Each of the {{ quantity }} items gets its own auto-generated
+            barcode.
+          </p>
           <input
             v-model="draft.name"
             required
             class="field"
             list="item-names"
             placeholder="Item name"
-          /><datalist id="item-names">
+          /><label class="flex items-center gap-3 text-sm text-gray-300"
+            >Quantity<input
+              v-model.number="draft.quantity"
+              type="number"
+              min="1"
+              :max="MAX_QUANTITY"
+              step="1"
+              class="field !w-24"
+              aria-label="Quantity" /></label
+          ><datalist id="item-names">
             <option v-for="name in names" :key="name" :value="name" /></datalist
           ><textarea
             v-model="draft.description"
@@ -304,7 +317,8 @@
         <div class="flex justify-end gap-2">
           <button type="button" class="btn" @click="closeModals">Cancel</button
           ><button class="btn bg-blue-600">
-            Add {{ showBulk ? "items" : "item" }}
+            Add
+            {{ showBulk ? "items" : quantity > 1 ? `${quantity} items` : "item" }}
           </button>
         </div>
       </form>
@@ -551,7 +565,13 @@ const draft = reactive({
   place: "",
   categoryId: "",
   newCategory: "",
+  quantity: 1 as number | string,
 });
+const MAX_QUANTITY = 100;
+// Whatever is in the box, always a whole number from 1 to MAX_QUANTITY.
+const quantity = computed(() =>
+  Math.min(MAX_QUANTITY, Math.max(1, Math.floor(Number(draft.quantity)) || 1)),
+);
 const NEW_CATEGORY = "__new__";
 // The barcode follows the name and category until the user types their own.
 const barcodeEdited = ref(false);
@@ -798,6 +818,7 @@ function closeModals() {
     place: "",
     categoryId: "",
     newCategory: "",
+    quantity: 1,
   });
   barcodeEdited.value = false;
   clearTimeout(barcodeTimer);
@@ -844,15 +865,20 @@ async function saveItems() {
               categoryName: category ? undefined : categoryName || undefined,
             };
           })
-      : [
-          {
-            barcode: draft.barcode,
-            name: draft.name,
-            description: draft.description.trim() || null,
-            ...parsePlaceValue(draft.place),
-            ...categoryFields(),
-          },
-        ];
+      : (
+          quantity.value === 1
+            ? [draft.barcode]
+            : await apiService.generateInventoryBarcodes(
+                { name: draft.name, ...categoryFields() },
+                quantity.value,
+              )
+        ).map((barcode) => ({
+          barcode,
+          name: draft.name,
+          description: draft.description.trim() || null,
+          ...parsePlaceValue(draft.place),
+          ...categoryFields(),
+        }));
     await apiService.createInventoryItems(payload);
     closeModals();
     await load();

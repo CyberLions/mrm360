@@ -431,6 +431,11 @@ class ApiService {
     return (await this.api.post('/inventory/generate-barcode', parts)).data.barcode
   }
 
+  // `count` distinct codes (unique against existing items and each other) for adding several at once.
+  async generateInventoryBarcodes(parts: { name?: string; categoryId?: string | null; categoryName?: string }, count: number): Promise<string[]> {
+    return (await this.api.post('/inventory/generate-barcode', { ...parts, count })).data.barcodes
+  }
+
   // Public: sent with plain axios so the interceptors don't force a login for anonymous visitors.
   async reportInventoryItemLost(data: { code: string; note?: string; contact?: string }): Promise<{ itemName: string; newlyReported: boolean }> {
     return (await axios.post(`${window.ENV.VITE_API_BASE_URL}/inventory/lost`, data, { timeout: 10000 })).data
