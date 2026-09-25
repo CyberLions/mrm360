@@ -394,15 +394,45 @@ const activeTemplate = computed(
     null,
 );
 
+// An item is in a bin, directly on a shelf, or directly in a room — mirrors
+// LocationLabelPicker's precedence so filtering and display agree with it.
+const itemRoom = (entry: InventoryItem) =>
+  entry.bin?.room || entry.shelf?.room?.name || entry.room?.name || null;
+const itemShelf = (entry: InventoryItem) =>
+  entry.bin?.shelf || entry.shelf?.name || null;
+
 // Location filters cascade: room narrows shelves, room + shelf narrow bins.
-const rooms = computed(() =>
-  [...new Set(bins.value.map((b) => b.room).filter(Boolean))].sort() as string[],
+// Options come from both existing bins and the room/shelf registries, so a
+// shelf that only holds directly-placed items (no bin) still shows up.
+const rooms = computed(
+  () =>
+    [
+      ...new Set([
+        ...bins.value.map((b) => b.room),
+        ...registryRooms.value.map((r) => r.name),
+      ]),
+    ]
+      .filter(Boolean)
+      .sort() as string[],
 );
 const binsInRoom = computed(() =>
   bins.value.filter((b) => !filters.room || b.room === filters.room),
 );
-const shelves = computed(() =>
-  [...new Set(binsInRoom.value.map((b) => b.shelf).filter(Boolean))].sort() as string[],
+const shelvesInRoom = computed(() =>
+  registryShelves.value.filter(
+    (s) => !filters.room || (s.room?.name ?? null) === filters.room,
+  ),
+);
+const shelves = computed(
+  () =>
+    [
+      ...new Set([
+        ...binsInRoom.value.map((b) => b.shelf),
+        ...shelvesInRoom.value.map((s) => s.name),
+      ]),
+    ]
+      .filter(Boolean)
+      .sort() as string[],
 );
 const binOptions = computed(() =>
   binsInRoom.value.filter((b) => !filters.shelf || b.shelf === filters.shelf),
@@ -410,24 +440,31 @@ const binOptions = computed(() =>
 
 const location = (entry: InventoryItem) => {
   const bin = entry.bin;
-  if (!bin) return "Unassigned";
-  const parts = [bin.room, bin.shelf ? `Shelf ${bin.shelf}` : "", bin.name];
-  return parts.filter(Boolean).join(" · ");
+  if (bin) {
+    const parts = [bin.room, bin.shelf ? `Shelf ${bin.shelf}` : "", bin.name];
+    return parts.filter(Boolean).join(" · ");
+  }
+  const room = itemRoom(entry);
+  const shelf = itemShelf(entry);
+  if (shelf) return [room, `Shelf ${shelf}`].filter(Boolean).join(" · ");
+  if (room) return room;
+  return "Unassigned";
 };
 
 const filtered = computed(() => {
   const q = filters.search.trim().toLowerCase();
   return items.value.filter((entry) => {
-    const bin = entry.bin;
+    const room = itemRoom(entry);
+    const shelf = itemShelf(entry);
     if (
       q &&
       ![
         entry.name,
         entry.barcode,
         entry.category?.name,
-        bin?.name,
-        bin?.room,
-        bin?.shelf,
+        entry.bin?.name,
+        room,
+        shelf,
       ].some((v) => v?.toLowerCase().includes(q))
     )
       return false;
@@ -438,8 +475,8 @@ const filtered = computed(() => {
         : entry.categoryId !== filters.categoryId)
     )
       return false;
-    if (filters.room && bin?.room !== filters.room) return false;
-    if (filters.shelf && bin?.shelf !== filters.shelf) return false;
+    if (filters.room && room !== filters.room) return false;
+    if (filters.shelf && shelf !== filters.shelf) return false;
     if (
       filters.binId &&
       (filters.binId === "unassigned"
